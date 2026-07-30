@@ -79,19 +79,16 @@ export async function runWebImageFlow(options: WebImageFlowOptions): Promise<Web
     const submit = page.getByRole("button", { name: /send|submit|发送/i });
     if (await submit.count() !== 1) throw new Error("PAGE_STRUCTURE_CHANGED: submit");
     await options.onBeforeSubmitClick?.();
-    await submit.click();
     const initialStatePromise = page.waitForFunction((count) => {
       const response = document.querySelectorAll('[data-message-author-role="assistant"]').item(count);
       return response ? response.getAttribute("data-state") ?? "generating" : false;
-    }, assistantBaseline, { timeout: Math.min(options.timeoutMs, 10000) });
+    }, assistantBaseline, { timeout: Math.min(options.timeoutMs, 10000) }).then((handle) => handle.jsonValue() as Promise<string>).catch(() => undefined);
+    await submit.click();
     await page.waitForFunction((count) => document.querySelectorAll('[data-message-author-role="user"]').length > count, userBaseline.length, { timeout: Math.min(options.timeoutMs, 10000) });
     const status = confirmSubmission(prepared, { userMessages: await page.locator('[data-message-author-role="user"]').allTextContents(), composerEmpty: (await composer.inputValue()) === "" });
     if (status !== "confirmed") throw new Error(`SUBMISSION_${status.toUpperCase()}`);
-    const [initialStateHandle] = await Promise.all([
-      initialStatePromise,
-      options.onSubmissionConfirmed?.()
-    ]);
-    initialPageState = await initialStateHandle.jsonValue() as string;
+    const [capturedState] = await Promise.all([initialStatePromise, options.onSubmissionConfirmed?.()]);
+    initialPageState = capturedState ?? "";
   }
   await page.waitForFunction((count) => document.querySelectorAll('[data-message-author-role="assistant"]').length > count, assistantBaseline, { timeout: Math.min(options.timeoutMs, 10000) });
   const assistantIndex = assistantBaseline;

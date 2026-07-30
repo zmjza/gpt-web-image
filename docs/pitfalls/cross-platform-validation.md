@@ -54,9 +54,9 @@
 
 **根因**：提交确认后，流程先等待 `task.json` 持久化回调完成，再开始查找助手回复。Windows runner 的文件 I/O 足以跨过夹具仅短暂存在的 `queued` 状态，使首次采样直接读到 `generating`。
 
-**正确做法**：`submit.click()` 返回后立即在浏览器侧启动新助手回复观察，并与用户消息确认、提交记录持久化并行等待；缓存最早的 `data-state`，待提交记录和回复锚点都落盘后再发出状态事件。回归用例必须覆盖确认读取和持久化变慢的情况。
+**正确做法**：在 `submit.click()` 前注册新助手回复观察 promise，使其覆盖点击事件本身；点击后与用户消息确认、提交记录持久化并行等待，缓存最早的 `data-state`，待提交记录和回复锚点都落盘后再发出状态事件。回归用例必须覆盖确认读取和持久化变慢的情况。
 
-**验证方式**：`tests/integration/web-flow.test.ts` 在 `onSubmissionConfirmed` 中延迟 75ms；两次 Windows Actions 运行（`30532375079`、`30533952523`）均暴露 `observed.includes("queued")`，最终修复把观察启动点前移到 `submit.click()` 后，本机目标用例通过。随后运行完整 `npm run typecheck`、`npm test`、`npm run build`，并以新的 Windows Actions 运行结果作为跨平台收口证据。
+**验证方式**：`tests/integration/web-flow.test.ts` 在 `onSubmissionConfirmed` 中延迟 75ms；三次 Windows Actions 运行（`30532375079`、`30533952523`、`30534313119`）均暴露 `observed.includes("queued")`，最终修复把观察 promise 注册到 `submit.click()` 前，本机目标用例通过。随后运行完整 `npm run typecheck`、`npm test`、`npm run build`，并以新的 Windows Actions 运行结果作为跨平台收口证据。
 
 **禁止事项**：不得通过删除 `queued` 断言、伪造排队事件或单纯放大固定等待时间掩盖竞态；不得在新的 Windows CI 变绿前把 T39 标记为通过。
 
