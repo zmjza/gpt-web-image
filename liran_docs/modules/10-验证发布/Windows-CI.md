@@ -21,3 +21,7 @@ GitHub Actions `windows-latest` 安装受支持 Node、依赖与 Chrome，运行
 ## 状态 / 边界
 
 CI 不登录真实 ChatGPT，不证明网页真实流程完成。不得把模拟夹具通过写成 Windows 真机通过。
+
+## 当前实测
+
+2026-07-30 首次运行 `30532375079` 在 `npm test` 阶段通过 58/59 项。失败用例证明提交确认持久化可能让 Windows runner 遗漏短暂 `queued` 状态；根因修复和慢持久化回归已完成，仍需新的 Windows Actions 绿色运行才能把 T39 标记为真机测试通过。

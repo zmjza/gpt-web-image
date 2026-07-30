@@ -60,6 +60,7 @@ export async function runWebImageFlow(options: WebImageFlowOptions): Promise<Web
   const { page } = options;
   const assistantBaseline = await page.locator('[data-message-author-role="assistant"]').count();
   const userBaseline = await page.locator('[data-message-author-role="user"]').allTextContents();
+  let initialPageState = "";
   if (options.submit !== false) {
     const composer = page.getByRole("textbox", { name: /message|prompt|消息|提问/i });
     if (await composer.count() !== 1) {
@@ -82,17 +83,25 @@ export async function runWebImageFlow(options: WebImageFlowOptions): Promise<Web
     await page.waitForFunction((count) => document.querySelectorAll('[data-message-author-role="user"]').length > count, userBaseline.length, { timeout: Math.min(options.timeoutMs, 10000) });
     const status = confirmSubmission(prepared, { userMessages: await page.locator('[data-message-author-role="user"]').allTextContents(), composerEmpty: (await composer.inputValue()) === "" });
     if (status !== "confirmed") throw new Error(`SUBMISSION_${status.toUpperCase()}`);
-    await options.onSubmissionConfirmed?.();
+    const [initialStateHandle] = await Promise.all([
+      page.waitForFunction((count) => {
+        const response = document.querySelectorAll('[data-message-author-role="assistant"]').item(count);
+        return response ? response.getAttribute("data-state") ?? "generating" : false;
+      }, assistantBaseline, { timeout: Math.min(options.timeoutMs, 10000) }),
+      options.onSubmissionConfirmed?.()
+    ]);
+    initialPageState = await initialStateHandle.jsonValue() as string;
   }
   await page.waitForFunction((count) => document.querySelectorAll('[data-message-author-role="assistant"]').length > count, assistantBaseline, { timeout: Math.min(options.timeoutMs, 10000) });
   const assistantIndex = assistantBaseline;
   const assistant = page.locator('[data-message-author-role="assistant"]').nth(assistantIndex);
   await options.onResponseAnchor?.({ userTurnOrdinal: userBaseline.length + 1, assistantTurnOrdinal: assistantIndex + 1, semanticFingerprint: createHash("sha256").update(`${page.url()}:${userBaseline.length + 1}:${assistantIndex + 1}`).digest("hex"), boundAt: new Date().toISOString() }, page.url());
+  if (initialPageState) options.onState?.(initialPageState);
   const discovery = new ImageDiscovery([], options.stabilityWindowMs);
   const knownHashes = new Set(options.knownHashes ?? []);
   const results: ImageResult[] = [];
   const startedAt = Date.now();
-  let lastState = "";
+  let lastState = initialPageState;
   let completedAt: number | null = null;
   while (Date.now() - startedAt <= options.timeoutMs) {
     if (await options.isCancelled?.()) throw new Error("TASK_CANCELLED");

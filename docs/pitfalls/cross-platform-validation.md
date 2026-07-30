@@ -47,3 +47,19 @@
 **相关文件或命令**：`package-lock.json`、`npm audit --audit-level=high`、`npm audit --registry=https://registry.npmjs.org --audit-level=high`。
 
 **适用范围**：使用第三方 npm registry 的本地验证、CI 安全审计和发布门禁。
+
+## 不要在持久化完成后才开始捕获网页瞬时状态
+
+**现象**：Windows Actions 首次运行中，59 项测试有 58 项通过；`T37 controlled browser fixture proves queued -> progressive images -> complete` 未观察到 `queued`，但同组生成、下载、10 张上限、部分成功和实时事件用例通过。
+
+**根因**：提交确认后，流程先等待 `task.json` 持久化回调完成，再开始查找助手回复。Windows runner 的文件 I/O 足以跨过夹具仅短暂存在的 `queued` 状态，使首次采样直接读到 `generating`。
+
+**正确做法**：确认新用户消息后立即在浏览器侧启动新助手回复观察，并与提交确认持久化并行等待；缓存最早的 `data-state`，待提交记录和回复锚点都落盘后再发出状态事件。回归用例必须模拟较慢的提交确认回调。
+
+**验证方式**：`tests/integration/web-flow.test.ts` 在 `onSubmissionConfirmed` 中延迟 75ms；修复前稳定失败于 `observed.includes("queued")`，修复后目标用例通过。随后运行完整 `npm run typecheck`、`npm test`、`npm run build`，并以新的 Windows Actions 运行结果作为跨平台收口证据。
+
+**禁止事项**：不得通过删除 `queued` 断言、伪造排队事件或单纯放大固定等待时间掩盖竞态；不得在新的 Windows CI 变绿前把 T39 标记为通过。
+
+**相关文件或命令**：`src/chatgpt/web-flow.ts`、`tests/integration/web-flow.test.ts`、`.github/workflows/windows.yml`、Windows Actions run `30532375079`。
+
+**适用范围**：提交确认、回复绑定、状态监控、慢磁盘环境、Windows CI 和真实网页瞬时状态捕获。
