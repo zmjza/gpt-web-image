@@ -72,7 +72,7 @@
 
 **正确做法**：测试输入和预期值都使用 Node `path.resolve`/`path.join` 生成当前平台路径，只断言业务约束，不把 macOS 路径表示当成跨平台合同。
 
-**验证方式**：运行 `npm test`；推送修复后等待新的 `windows-latest` Actions 全步骤绿色。Windows CI 未变绿前不得把该修复写成跨平台通过。
+**验证方式**：运行 `npm test`；修复提交 `d4b2fce` 的 Windows Actions run `30542680444` 已全步骤绿色。后续类似修复仍须等待对应最新提交的 `windows-latest` 结果。
 
 **禁止事项**：不得在跨平台测试中写死 `/tmp`、盘符或路径分隔符；不得删除路径中空格的覆盖；不得用跳过 Windows 测试掩盖断言错误。
 
