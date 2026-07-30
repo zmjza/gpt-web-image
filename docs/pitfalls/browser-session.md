@@ -31,3 +31,19 @@
 **相关文件或命令**：`src/browser/profile.ts`、`src/browser/login.ts`、`src/chatgpt/web-flow.ts`、`node dist/src/cli.js setup`、`ps -axo pid,ppid,command`。
 
 **适用范围**：macOS ARM64 和 Windows x64 的 Google/OpenAI 首次认证、Cloudflare 人工验证和后续后台复用。
+
+## 普通 Chrome 的登录不会迁移到专用 Profile
+
+**现象**：用户记得已经在 Chrome 登录，但项目专用页面仍显示“登录/免费注册”；专用目录和 Chrome 文件仍存在，普通 Chrome 也可能同时打开多个个人资料。
+
+**根因**：项目通过 `--user-data-dir` 使用独立 Profile。普通 Chrome 的个人资料、Cookie 和 ChatGPT 会话与该目录隔离；本次真实检查只能证明专用页面当前处于访客态，无法仅凭文件时间判断服务端会话是否过期，具体失效原因信息不全，待人工补充。
+
+**正确做法**：只在项目启动的专用 Chrome 窗口中完成一次登录。固定保存位置由 `doctor/setup` 的 `profile.path`/`profileDir` 输出确认，根目录 `.gpt-web-image-profile.json` 记录 `profileDir` 和 `retentionPolicy=never-auto-delete`。正常关闭只释放锁，后台任务复用同一目录。
+
+**验证方式**：确认专用 Chrome 启动参数含目标 `--user-data-dir`；检查页面无登录控件、存在稳定的已登录 composer；运行 `doctor --json` 查看 `profile.path`、`profile.markerPath` 和 `profile.retentionPolicy`；确认 Profile 目录仍存在且 cleanup 对其路径拒绝执行。
+
+**禁止事项**：不得把普通 Chrome 的登录当作专用 Profile 已登录；不得删除、重建或清空 Profile；不得读取 Cookie、Token、密码或验证码来判断会话。
+
+**相关文件或命令**：`src/config/schema.ts`、`src/browser/profile.ts`、`src/commands/doctor.ts`、`src/diagnostics/cleanup.ts`、`node dist/src/cli.js doctor --json`、`node dist/src/cli.js setup`。
+
+**适用范围**：macOS ARM64 和 Windows x64 的首次登录、会话复用、登录失效接管和清理操作。

@@ -9,9 +9,27 @@ import { runWebImageFlow } from "../../src/chatgpt/web-flow.js";
 import { createOutputLayout } from "../../src/images/output-layout.js";
 import { startFixtureServer } from "../fixtures/chatgpt-page/server.js";
 import { runCli } from "../../src/cli.js";
+import { launchProfile } from "../../src/browser/profile.js";
 
 const chrome = inspectChrome();
 if (process.env.GWI_REQUIRE_CHROME === "1" && !chrome.available) throw new Error("GWI_REQUIRE_CHROME=1 but Google Chrome was not found");
+test("T17 closes a dedicated Chrome before immediately reopening the same profile", { skip: !chrome.available }, async () => {
+  const fixture = await startFixtureServer();
+  const profileDir = await mkdtemp(join(tmpdir(), "gwi-reopen-profile-"));
+  let first: Awaited<ReturnType<typeof launchProfile>> | undefined;
+  let second: Awaited<ReturnType<typeof launchProfile>> | undefined;
+  try {
+    first = await launchProfile({ profileDir, executablePath: chrome.path as string, headed: false, url: fixture.url });
+    await first.close();
+    first = undefined;
+    second = await launchProfile({ profileDir, executablePath: chrome.path as string, headed: true, url: fixture.url });
+    assert.match(await second.page.title(), /Controlled ChatGPT Fixture/);
+  } finally {
+    await first?.close();
+    await second?.close();
+    await fixture.close();
+  }
+});
 test("T37 controlled browser fixture proves queued -> progressive images -> complete", { skip: !chrome.available }, async () => {
   const fixture = await startFixtureServer();
   const browser = await chromium.launch({ executablePath: chrome.path as string, headless: true });
@@ -48,6 +66,30 @@ test("T37 controlled browser fixture classifies a rate limit failure", { skip: !
     await page.goto(`${fixture.url}/?scenario=failure`);
     const layout = await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-flow-")), new Date(), "fixture_failure");
     await assert.rejects(() => runWebImageFlow({ page, prompt: "失败场景", targetCount: 1, outputLayout: layout, stabilityWindowMs: 10, pollIntervalMs: 10, timeoutMs: 1000 }), /RATE_LIMITED/);
+  } finally { await browser.close(); await fixture.close(); }
+});
+
+test("T21 waits for a delayed SPA composer instead of reporting a structure change", { skip: !chrome.available }, async () => {
+  const fixture = await startFixtureServer();
+  const browser = await chromium.launch({ executablePath: chrome.path as string, headless: true });
+  try {
+    const page = await browser.newPage({ acceptDownloads: true });
+    await page.goto(`${fixture.url}/?scenario=success&count=1&readyDelay=150`);
+    const layout = await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-delayed-composer-")), new Date(), "fixture_delayed_composer");
+    const result = await runWebImageFlow({ page, prompt: "等待输入区", targetCount: 1, outputLayout: layout, stabilityWindowMs: 10, pollIntervalMs: 10, timeoutMs: 2000 });
+    assert.equal(result.state, "succeeded");
+  } finally { await browser.close(); await fixture.close(); }
+});
+
+test("T18 ignores a transient login control while the saved session hydrates", { skip: !chrome.available }, async () => {
+  const fixture = await startFixtureServer();
+  const browser = await chromium.launch({ executablePath: chrome.path as string, headless: true });
+  try {
+    const page = await browser.newPage({ acceptDownloads: true });
+    await page.goto(`${fixture.url}/?scenario=success&count=1&loginFlash=150`);
+    const layout = await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-login-flash-")), new Date(), "fixture_login_flash");
+    const result = await runWebImageFlow({ page, prompt: "等待会话恢复", targetCount: 1, outputLayout: layout, stabilityWindowMs: 10, pollIntervalMs: 10, timeoutMs: 2500 });
+    assert.equal(result.state, "succeeded");
   } finally { await browser.close(); await fixture.close(); }
 });
 

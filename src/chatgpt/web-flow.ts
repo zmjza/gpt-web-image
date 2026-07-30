@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { rename } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import type { Page } from "playwright-core";
-import { isVerificationChallenge } from "../browser/login.js";
+import { waitForAutomatedComposer } from "../browser/login.js";
 import { prepareSubmission, confirmSubmission } from "./submit.js";
 import { ImageDiscovery, type ImageCandidate } from "../images/discovery.js";
 import { downloadOriginal } from "../images/download.js";
@@ -59,15 +59,12 @@ async function downloadBuffer(page: Page, assistantIndex: number, resultId: stri
 
 export async function runWebImageFlow(options: WebImageFlowOptions): Promise<WebImageFlowResult> {
   const { page } = options;
+  if (options.submit !== false) await waitForAutomatedComposer(page, Math.min(options.timeoutMs, 60_000), options.pollIntervalMs ?? 250);
   const assistantBaseline = await page.locator('[data-message-author-role="assistant"]').count();
   const userBaseline = await page.locator('[data-message-author-role="user"]').allTextContents();
   let initialPageState = "";
   if (options.submit !== false) {
-    if (await page.getByRole("button", { name: /log\s*in|sign\s*in|登录/i }).count() > 0 || await page.getByRole("link", { name: /log\s*in|sign\s*in|登录/i }).count() > 0 || /\/auth\/login/i.test(page.url())) throw new Error("LOGIN_REQUIRED");
-    const bodyText = (await page.locator("body").innerText().catch(() => "")).slice(0, 5000);
-    const hasChallengeFrame = await page.locator("iframe[src*='challenges.cloudflare.com'], [class*='cf-turnstile'], [data-sitekey]").count() > 0;
-    if (isVerificationChallenge({ url: page.url(), bodyText, hasChallengeFrame })) throw new Error("HUMAN_VERIFICATION_REQUIRED");
-    const composer = page.getByRole("textbox", { name: /message|prompt|消息|提问|聊天/i });
+    const composer = page.getByRole("textbox", { name: /message|prompt|消息|提问|聊天/i }).filter({ visible: true });
     if (await composer.count() !== 1) {
       throw new Error("PAGE_STRUCTURE_CHANGED: composer");
     }

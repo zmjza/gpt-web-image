@@ -14,7 +14,10 @@ test("T35 routes doctor and rejects unknown commands with documented exit codes"
   const out: string[] = []; const err: string[] = [];
   const code = await runCli(["doctor", "--json", "--config", configPath], { stdout: (line) => out.push(line), stderr: (line) => err.push(line) });
   assert.equal(code, 0);
-  assert.equal(typeof JSON.parse(out[0] ?? "{}").node.version, "string");
+  const report = JSON.parse(out[0] ?? "{}");
+  assert.equal(typeof report.node.version, "string");
+  assert.equal(report.profile.retentionPolicy, "never-auto-delete");
+  assert.equal(report.profile.markerPath, join(root, "profile", ".gpt-web-image-profile.json"));
   assert.equal(await runCli(["unknown"], { stdout: () => undefined, stderr: () => undefined }), 20);
 });
 

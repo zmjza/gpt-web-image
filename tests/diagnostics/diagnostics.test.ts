@@ -40,3 +40,16 @@ test("T12 only removes expired regular diagnostics and never follows symlinks", 
   assert.equal(await readFile(external, "utf8"), "image");
   assert.equal(await readFile(task, "utf8"), "{}");
 });
+
+test("T12 refuses to clean any directory inside the protected Chrome Profile", async () => {
+  const profile = await mkdtemp(join(tmpdir(), "gwi-protected-profile-"));
+  const diagnostics = join(profile, "diagnostics");
+  await mkdir(diagnostics);
+  const old = join(diagnostics, "old.json");
+  await writeFile(old, "{}");
+  const oldDate = new Date("2026-07-01T00:00:00Z");
+  await utimes(old, oldDate, oldDate);
+
+  await assert.rejects(() => cleanupDiagnostics(diagnostics, new Date("2026-07-30T00:00:00Z"), 7, false, profile), /Profile 数据永不自动删除/);
+  assert.equal(await readFile(old, "utf8"), "{}");
+});

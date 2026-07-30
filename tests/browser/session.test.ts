@@ -11,16 +11,33 @@ test("T17 creates an ownership marker and rejects a foreign non-empty profile", 
   const owned = await mkdtemp(join(tmpdir(), "gwi-profile-"));
   await ensureOwnedProfile(owned);
   await ensureOwnedProfile(owned);
-  const marker = JSON.parse(await (await import("node:fs/promises")).readFile(profileMarkerPath(owned), "utf8")) as { owner: string };
+  const marker = JSON.parse(await (await import("node:fs/promises")).readFile(profileMarkerPath(owned), "utf8")) as { owner: string; profileDir: string; retentionPolicy: string };
   assert.equal(marker.owner, "gpt-web-image");
+  assert.equal(marker.profileDir, resolve(owned));
+  assert.equal(marker.retentionPolicy, "never-auto-delete");
 
   const foreign = await mkdtemp(join(tmpdir(), "gwi-foreign-"));
   await writeFile(join(foreign, "Preferences"), "{}");
   await assert.rejects(() => ensureOwnedProfile(foreign), /非本项目/);
 });
 
-test("T17 keeps the Chromium sandbox enabled for account flows", async () => {
-  assert.match(await readFile("src/browser/profile.ts", "utf8"), /chromiumSandbox:\s*true/);
+test("T17 upgrades a legacy marker without deleting existing Profile data", async () => {
+  const profile = await mkdtemp(join(tmpdir(), "gwi-legacy-profile-"));
+  const sentinel = join(profile, "Cookies");
+  await writeFile(profileMarkerPath(profile), JSON.stringify({ schemaVersion: "1", owner: "gpt-web-image", createdAt: "2026-01-01T00:00:00.000Z" }));
+  await writeFile(sentinel, "opaque-profile-data");
+
+  await ensureOwnedProfile(profile);
+
+  const marker = JSON.parse(await (await import("node:fs/promises")).readFile(profileMarkerPath(profile), "utf8")) as { profileDir: string; retentionPolicy: string };
+  assert.equal(marker.profileDir, resolve(profile));
+  assert.equal(marker.retentionPolicy, "never-auto-delete");
+  assert.equal(await (await import("node:fs/promises")).readFile(sentinel, "utf8"), "opaque-profile-data");
+});
+
+test("T17 avoids Playwright launch fingerprints for account flows", async () => {
+  const source = await readFile("src/browser/profile.ts", "utf8");
+  assert.doesNotMatch(source, /launchPersistentContext|--no-sandbox|chromiumSandbox:\s*false/);
 });
 
 test("T17 launches headed account flows as ordinary Chrome with an isolated profile", () => {
@@ -38,6 +55,12 @@ test("T17 launches headed account flows as ordinary Chrome with an isolated prof
   assert.equal(args.includes("--remote-debugging-port=0"), false);
 });
 
+test("T17 runs normal tasks in minimized ordinary Chrome without headless fingerprints", () => {
+  const args = buildHeadedChromeArgs(resolve("dedicated profile"), "https://chatgpt.com/", 43124, true);
+  assert.equal(args.includes("--start-minimized"), true);
+  assert.equal(args.some((argument) => /--headless|--enable-automation|--no-sandbox/.test(argument)), false);
+});
+
 test("T18 requires a stable interactive composer, not a URL redirect", () => {
   assert.equal(classifyLoginPage({ url: "https://chatgpt.com/", hasInteractiveComposer: false, hasLoginControl: false, hasVerification: false }), "unknown");
   assert.equal(classifyLoginPage({ url: "https://chatgpt.com/auth/login", hasInteractiveComposer: false, hasLoginControl: true, hasVerification: false }), "needs_login");
@@ -50,6 +73,7 @@ test("T18 requires a stable interactive composer, not a URL redirect", () => {
 
 test("T18 recognizes real verification pages without matching unrelated chat text", () => {
   assert.equal(isVerificationChallenge({ url: "https://auth.openai.com/", bodyText: "正在进行安全验证", hasChallengeFrame: true }), true);
+  assert.equal(isVerificationChallenge({ url: "https://chatgpt.com/", bodyText: "", hasChallengeFrame: true }), true);
   assert.equal(isVerificationChallenge({ url: "https://chatgpt.com/", bodyText: "历史聊天：验证码怎么收", hasChallengeFrame: false }), false);
   assert.equal(isVerificationChallenge({ url: "https://chatgpt.com/", bodyText: "", hasChallengeFrame: false }), false);
 });

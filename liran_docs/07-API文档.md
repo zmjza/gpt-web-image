@@ -17,7 +17,7 @@
 | 命令 | 主要输入 | 用途 | 是否可产生网页提交 |
 |---|---|---|---|
 | `setup` | 可选 Chrome/Profile 配置 | 可视登录并验证会话 | 否 |
-| `doctor` | `--json` 可选 | 检查 Node、Chrome、目录、锁和 Profile | 否 |
+| `doctor` | `--json` 可选 | 检查 Node、Chrome、目录、锁和 Profile；输出 `profile.path`、`profile.markerPath`、`profile.retentionPolicy` | 否 |
 | `generate` | prompt、count、ratio、references | 创建新对话并文字/参考图生图 | 是 |
 | `edit` | prompt、references、count | 新对话中改图 | 是 |
 | `refine` | taskId、resultIds、prompt | 原会话连续修改 | 是 |
@@ -31,6 +31,7 @@
 - stdout 仅输出 JSONL ProgressEvent；人工日志写 stderr。
 - 所有路径参数在使用前规范化并验证。
 - 破坏性操作仅限 cleanup 对 diagnostics 根内已过期文件，支持 dry-run。
+- 专用 Chrome Profile 默认位于 macOS `~/Library/Application Support/gpt-web-image/chrome-profile`、Windows `%LOCALAPPDATA%\\gpt-web-image\\chrome-profile`；Profile 元数据标记为 `.gpt-web-image-profile.json`。自动命令永不删除或重建 Profile，cleanup 触碰 Profile 路径时拒绝执行。
 - 任何网页提交前必须完成 task.json 原子写入和 attemptId 建立。
 
 ## JSONL 事件协议 v1

@@ -6,7 +6,8 @@
     <article data-message-author-role="assistant" data-turn="1"><p>历史回复</p><img src="/image.png?id=old" data-result-id="old" width="1" height="1" alt="历史图片"></article>
   </main>
   <form id="composer-form">
-    <textarea aria-label="Message ChatGPT"></textarea>
+    <textarea aria-label="Message ChatGPT" hidden></textarea>
+    <div id="prompt-textarea" role="textbox" aria-label="Message ChatGPT" contenteditable="true"></div>
     <input type="file" aria-label="Upload files" multiple>
     <button type="submit" aria-label="Send prompt">发送</button>
   </form>
@@ -14,13 +15,26 @@
     const params = new URLSearchParams(location.search);
     const scenario = params.get('scenario') || 'success';
     const count = Number(params.get('count') || '2');
+    const readyDelay = Number(params.get('readyDelay') || '0');
+    const loginFlash = Number(params.get('loginFlash') || '0');
     const form = document.querySelector('#composer-form');
-    const input = form.querySelector('textarea');
+    const input = form.querySelector('#prompt-textarea');
     const conversation = document.querySelector('#conversation');
+    if (readyDelay > 0) {
+      form.hidden = true;
+      setTimeout(() => { form.hidden = false; }, readyDelay);
+    }
+    if (loginFlash > 0) {
+      form.hidden = true;
+      const login = document.createElement('button');
+      login.textContent = 'Log in';
+      document.body.appendChild(login);
+      setTimeout(() => { login.remove(); form.hidden = false; }, loginFlash);
+    }
     form.addEventListener('submit', (event) => {
       event.preventDefault();
-      const prompt = input.value;
-      input.value = '';
+      const prompt = input.textContent;
+      input.textContent = '';
       conversation.insertAdjacentHTML('beforeend', `<article data-message-author-role="user"><p>${prompt.replace(/[<>&]/g, '')}</p></article>`);
       const assistant = document.createElement('article');
       assistant.dataset.messageAuthorRole = 'assistant';

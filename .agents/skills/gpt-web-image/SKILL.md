@@ -18,7 +18,7 @@ description: >-
 
 ## 执行约定
 
-1. 从本 Skill 目录的 `.gpt-web-image-install.json` 读取 `projectRoot`，使用 `node {projectRoot}/dist/src/cli.js` 调用 `setup/doctor/generate/edit/refine/resume/cancel/cleanup`；开发仓库内可直接运行 `node dist/src/cli.js`。
+1. 从本 Skill 目录的 `.gpt-web-image-install.json` 读取 `projectRoot`，使用 `node {projectRoot}/dist/src/cli.js` 调用 `setup/doctor/generate/edit/refine/resume/cancel/cleanup`；开发仓库内可直接运行 `node dist/src/cli.js`。默认专用 Profile 固定保存在 macOS `~/Library/Application Support/gpt-web-image/chrome-profile` 或 Windows `%LOCALAPPDATA%\\gpt-web-image\\chrome-profile`，位置也会在 `doctor/setup` 输出中显示；除非用户明确提出并确认，任何命令不得删除或重建该 Profile。
 2. 请求有多张来源图且未说明目标时，必须先要求用户指定编号或“全部”，不能自动选第一张。
 3. CLI stdout 是 JSONL。每收到一条 `image_ready`，立刻用 `image.previewPath || image.originalPath` 的绝对路径输出 Markdown 图片：`![生成图片 X/N](/绝对路径)`，不得等到整批结束，也不能只回显路径文本。
 4. 同一 `resultId` 或 `sha256` 只显示一次；终态核对 `completed/target`。部分失败不撤回已经显示的合格图片。

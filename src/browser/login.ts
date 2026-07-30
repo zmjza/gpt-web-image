@@ -42,7 +42,7 @@ export async function readLoginPageSignals(page: Page): Promise<LoginPageSignals
       return {
         url: location.href,
         bodyText,
-        hasChallengeFrame: Boolean(document.querySelector("iframe[src*='challenges.cloudflare.com'], [class*='cf-turnstile'], [data-sitekey]")),
+        hasChallengeFrame: Boolean(document.querySelector("iframe[src*='challenges.cloudflare.com'], [class*='cf-turnstile'], [data-sitekey], input[id^='cf-chl-widget-']")),
         hasLoginControl: controls.some((element) => visible(element) && /log\s*in|sign\s*in|登录/i.test(element.textContent || element.getAttribute("aria-label") || "")),
         hasInteractiveComposer: composers.some((element) => visible(element) && /message|prompt|消息|提问|聊天/i.test(element.getAttribute("aria-label") ?? element.getAttribute("placeholder") ?? ""))
       };
@@ -67,4 +67,29 @@ export async function waitForReadyComposer(page: Page, timeoutMs: number, pollIn
     await delay(Math.min(pollIntervalMs, Math.max(0, deadline - Date.now())));
   }
   throw new Error("等待 ChatGPT 登录完成超时");
+}
+
+export async function waitForAutomatedComposer(page: Page, timeoutMs: number, pollIntervalMs = 250): Promise<void> {
+  // Keep the normal one-second hydration guard without consuming tiny test/custom time budgets.
+  const stabilityMs = Math.min(1000, Math.max(0, Math.floor(timeoutMs / 4)));
+  const tracker = new LoginReadinessTracker(stabilityMs);
+  const deadline = Date.now() + timeoutMs;
+  let blockingState: "needs_login" | "needs_human_verification" | null = null;
+  let blockingSince = 0;
+  while (Date.now() < deadline) {
+    if (page.isClosed()) throw new Error("PAGE_STRUCTURE_CHANGED: page_closed");
+    const state = tracker.observe(await readLoginPageSignals(page));
+    if (state === "ready") return;
+    if (state === "needs_login" || state === "needs_human_verification") {
+      if (blockingState !== state) { blockingState = state; blockingSince = Date.now(); }
+      if (Date.now() - blockingSince >= stabilityMs) {
+        throw new Error(state === "needs_login" ? "LOGIN_REQUIRED" : "HUMAN_VERIFICATION_REQUIRED");
+      }
+    } else {
+      blockingState = null;
+      blockingSince = 0;
+    }
+    await delay(Math.min(pollIntervalMs, Math.max(0, deadline - Date.now())));
+  }
+  throw new Error("PAGE_STRUCTURE_CHANGED: composer");
 }

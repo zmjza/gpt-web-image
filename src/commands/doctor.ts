@@ -1,5 +1,6 @@
 import { arch, platform } from "node:process";
 import { inspectChrome, isWritableDirectory, type ChromeOptions } from "../platform/chrome.js";
+import { PROFILE_RETENTION_POLICY, profileMarkerPath } from "../browser/profile.js";
 
 export interface DoctorOptions extends ChromeOptions {
   profileDir: string;
@@ -9,7 +10,7 @@ export interface DoctorOptions extends ChromeOptions {
 export interface DoctorReport {
   node: { version: string; platform: string; arch: string };
   chrome: ReturnType<typeof inspectChrome>;
-  profile: { path: string; writable: boolean };
+  profile: { path: string; markerPath: string; retentionPolicy: typeof PROFILE_RETENTION_POLICY; writable: boolean };
   output: { path: string; writable: boolean };
 }
 
@@ -17,7 +18,7 @@ export function runDoctor(options: DoctorOptions): DoctorReport {
   return {
     node: { version: process.version, platform: options.platform ?? platform, arch },
     chrome: inspectChrome(options),
-    profile: { path: options.profileDir, writable: isWritableDirectory(options.profileDir) },
+    profile: { path: options.profileDir, markerPath: profileMarkerPath(options.profileDir), retentionPolicy: PROFILE_RETENTION_POLICY, writable: isWritableDirectory(options.profileDir) },
     output: { path: options.outputDir, writable: isWritableDirectory(options.outputDir) }
   };
 }

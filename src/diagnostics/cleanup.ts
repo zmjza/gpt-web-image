@@ -1,10 +1,16 @@
 import { lstat, readdir, unlink } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 
 export interface CleanupReport { removed: string[]; skipped: string[]; }
 
-export async function cleanupDiagnostics(root: string, now = new Date(), retentionDays = 7, dryRun = false): Promise<CleanupReport> {
+export async function cleanupDiagnostics(root: string, now = new Date(), retentionDays = 7, dryRun = false, protectedRoot?: string): Promise<CleanupReport> {
   const base = resolve(root);
+  if (protectedRoot) {
+    const relativeToProtected = relative(resolve(protectedRoot), base);
+    if (relativeToProtected === "" || (!isAbsolute(relativeToProtected) && relativeToProtected !== ".." && !relativeToProtected.startsWith(`..${sep}`))) {
+      throw new Error("拒绝清理专用 Chrome Profile：Profile 数据永不自动删除");
+    }
+  }
   const report: CleanupReport = { removed: [], skipped: [] };
   let entries: string[];
   try { entries = await readdir(base); } catch { return report; }

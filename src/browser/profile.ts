@@ -7,18 +7,26 @@ import { chromium, type Browser, type BrowserContext, type Page } from "playwrig
 import { ProfileLock } from "./profile-lock.js";
 
 const MARKER = ".gpt-web-image-profile.json";
+export const PROFILE_RETENTION_POLICY = "never-auto-delete" as const;
 
-export interface ProfileMarker { schemaVersion: "1"; owner: "gpt-web-image"; createdAt: string; }
+export interface ProfileMarker {
+  schemaVersion: "1";
+  owner: "gpt-web-image";
+  createdAt: string;
+  profileDir: string;
+  retentionPolicy: typeof PROFILE_RETENTION_POLICY;
+}
 export interface BrowserSession { context: BrowserContext; page: Page; mode: "headed" | "headless"; close(): Promise<void>; }
 export interface LaunchProfileOptions { profileDir: string; executablePath: string; headed: boolean; url?: string; }
 
-export function buildHeadedChromeArgs(profileDir: string, url: string, debugPort: number): string[] {
+export function buildHeadedChromeArgs(profileDir: string, url: string, debugPort: number, minimized = false): string[] {
   return [
     `--user-data-dir=${resolve(profileDir)}`,
     "--remote-debugging-address=127.0.0.1",
     `--remote-debugging-port=${debugPort}`,
     "--no-first-run",
     "--no-default-browser-check",
+    ...(minimized ? ["--start-minimized"] : []),
     url
   ];
 }
@@ -44,19 +52,38 @@ export async function ensureOwnedProfile(profileDir: string): Promise<ProfileMar
   try {
     const marker = JSON.parse(await readFile(markerPath, "utf8")) as Partial<ProfileMarker>;
     if (marker.schemaVersion !== "1" || marker.owner !== "gpt-web-image" || typeof marker.createdAt !== "string") throw new Error("Profile 归属标记无效");
-    return marker as ProfileMarker;
+    if (marker.profileDir !== undefined && resolve(marker.profileDir) !== directory) throw new Error("Profile 路径与归属标记不一致");
+    if (marker.retentionPolicy !== undefined && marker.retentionPolicy !== PROFILE_RETENTION_POLICY) throw new Error("Profile 保留策略无效");
+    const normalized: ProfileMarker = {
+      schemaVersion: "1",
+      owner: "gpt-web-image",
+      createdAt: marker.createdAt,
+      profileDir: directory,
+      retentionPolicy: PROFILE_RETENTION_POLICY
+    };
+    if (marker.profileDir !== directory || marker.retentionPolicy !== PROFILE_RETENTION_POLICY) {
+      // 仅升级本项目自己的元数据标记，不触碰 Chrome Profile 内容。
+      await writeFile(markerPath, `${JSON.stringify(normalized, null, 2)}\n`);
+    }
+    return normalized;
   } catch (error) {
     const entries = (await readdir(directory)).filter((entry) => entry !== ".gpt-web-image.lock");
     if (entries.length > 0) throw new Error(`拒绝使用非本项目 Profile：${error instanceof Error ? error.message : String(error)}`);
-    const marker: ProfileMarker = { schemaVersion: "1", owner: "gpt-web-image", createdAt: new Date().toISOString() };
+    const marker: ProfileMarker = {
+      schemaVersion: "1",
+      owner: "gpt-web-image",
+      createdAt: new Date().toISOString(),
+      profileDir: directory,
+      retentionPolicy: PROFILE_RETENTION_POLICY
+    };
     await writeFile(markerPath, `${JSON.stringify(marker, null, 2)}\n`, { flag: "wx" });
     return marker;
   }
 }
 
-async function connectToHeadedChrome(profileDir: string, executablePath: string, url: string): Promise<{ browser: Browser; context: BrowserContext; page: Page; child: ChildProcess }> {
+async function connectToChrome(profileDir: string, executablePath: string, url: string, minimized: boolean): Promise<{ browser: Browser; context: BrowserContext; page: Page; child: ChildProcess }> {
   const debugPort = await reserveLoopbackPort();
-  const child = spawn(executablePath, buildHeadedChromeArgs(profileDir, url, debugPort), { stdio: "ignore" });
+  const child = spawn(executablePath, buildHeadedChromeArgs(profileDir, url, debugPort, minimized), { stdio: "ignore" });
   let launchError: Error | null = null;
   child.once("error", (error) => { launchError = error; });
   const deadline = Date.now() + 15_000;
@@ -76,43 +103,38 @@ async function connectToHeadedChrome(profileDir: string, executablePath: string,
   throw new Error("专用 Chrome 启动超时");
 }
 
+async function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
+  if (child.exitCode !== null || child.signalCode !== null) return true;
+  return new Promise<boolean>((resolvePromise) => {
+    const timer = setTimeout(() => { child.removeListener("exit", onExit); resolvePromise(false); }, timeoutMs);
+    const onExit = () => { clearTimeout(timer); resolvePromise(true); };
+    child.once("exit", onExit);
+  });
+}
+
+async function closeConnectedChrome(browser: Browser, child: ChildProcess): Promise<void> {
+  await browser.close().catch(() => undefined);
+  if (await waitForChildExit(child, 3000)) return;
+  child.kill();
+  await waitForChildExit(child, 1000);
+}
+
 export async function launchProfile(options: LaunchProfileOptions): Promise<BrowserSession> {
   await ensureOwnedProfile(options.profileDir);
   const lock = new ProfileLock(resolve(options.profileDir));
   await lock.acquire();
   try {
-    if (options.headed) {
-      const launched = await connectToHeadedChrome(options.profileDir, options.executablePath, options.url ?? "about:blank");
-      let closed = false;
-      return {
-        context: launched.context,
-        page: launched.page,
-        mode: "headed",
-        close: async () => {
-          if (closed) return;
-          closed = true;
-          await launched.browser.close().catch(() => undefined);
-          if (launched.child.exitCode === null) launched.child.kill();
-          await lock.release();
-        }
-      };
-    }
-    const context = await chromium.launchPersistentContext(resolve(options.profileDir), {
-      executablePath: options.executablePath,
-      headless: !options.headed,
-      chromiumSandbox: true,
-      acceptDownloads: true,
-      args: ["--no-first-run", "--no-default-browser-check"]
-    });
-    const page = context.pages()[0] ?? await context.newPage();
-    if (options.url) await page.goto(options.url, { waitUntil: "domcontentloaded" });
+    const launched = await connectToChrome(options.profileDir, options.executablePath, options.url ?? "about:blank", !options.headed);
     let closed = false;
     return {
-      context, page, mode: options.headed ? "headed" : "headless",
+      context: launched.context,
+      page: launched.page,
+      mode: options.headed ? "headed" : "headless",
       close: async () => {
         if (closed) return;
         closed = true;
-        await context.close().finally(() => lock.release());
+        await closeConnectedChrome(launched.browser, launched.child);
+        await lock.release();
       }
     };
   } catch (error) {

@@ -12,7 +12,7 @@ import { createTaskId } from "./tasks/id.js";
 import { createTaskRecord, type TaskRecord, type TaskState } from "./tasks/model.js";
 import { createOutputLayout } from "./images/output-layout.js";
 import { readTaskRecord, writeTaskRecord } from "./persistence/task-store.js";
-import { launchProfile } from "./browser/profile.js";
+import { launchProfile, PROFILE_RETENTION_POLICY, profileMarkerPath } from "./browser/profile.js";
 import { waitForReadyComposer } from "./browser/login.js";
 import { runWebImageFlow } from "./chatgpt/web-flow.js";
 import { EventWriter } from "./events/writer.js";
@@ -147,7 +147,7 @@ export async function runCli(argv: string[] = process.argv.slice(2), io: CliIo =
     }
     if (command === "cleanup") {
       const config = await loadConfig({ configPath: option(argv, "--config") });
-      io.stdout(JSON.stringify(await cleanupDiagnostics(join(config.fallbackOutputDir, "diagnostics"), new Date(), config.diagnosticRetentionDays, flag(argv, "--dry-run"))));
+      io.stdout(JSON.stringify(await cleanupDiagnostics(join(config.fallbackOutputDir, "diagnostics"), new Date(), config.diagnosticRetentionDays, flag(argv, "--dry-run"), config.profileDir)));
       return 0;
     }
     if (command === "install") { io.stdout(JSON.stringify(await installUserSkill({ projectRoot: resolve(option(argv, "--project-root") ?? process.cwd()), targetDir: option(argv, "--target") }))); return 0; }
@@ -167,7 +167,7 @@ export async function runCli(argv: string[] = process.argv.slice(2), io: CliIo =
       if (!chrome.path) return 20; const session = await launchProfile({ profileDir: config.profileDir, executablePath: chrome.path, headed: true, url: "https://chatgpt.com/" });
       try {
         await waitForReadyComposer(session.page, config.hardTimeoutMs);
-        io.stdout(JSON.stringify({ state: "ready" })); return 0;
+        io.stdout(JSON.stringify({ state: "ready", profileDir: resolve(config.profileDir), markerPath: profileMarkerPath(config.profileDir), retentionPolicy: PROFILE_RETENTION_POLICY })); return 0;
       }
       finally { await session.close(); }
     }
