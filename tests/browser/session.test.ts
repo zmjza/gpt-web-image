@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { buildHeadedChromeArgs, ensureOwnedProfile, profileMarkerPath } from "../../src/browser/profile.js";
 import { LoginReadinessTracker, classifyLoginPage, isVerificationChallenge } from "../../src/browser/login.js";
 import { createHandoffPlan } from "../../src/browser/handoff.js";
@@ -24,9 +24,10 @@ test("T17 keeps the Chromium sandbox enabled for account flows", async () => {
 });
 
 test("T17 launches headed account flows as ordinary Chrome with an isolated profile", () => {
-  const args = buildHeadedChromeArgs("/tmp/dedicated profile", "https://chatgpt.com/", 43123);
+  const profileDir = resolve("dedicated profile");
+  const args = buildHeadedChromeArgs(profileDir, "https://chatgpt.com/", 43123);
   assert.deepEqual(args, [
-    "--user-data-dir=/tmp/dedicated profile",
+    `--user-data-dir=${profileDir}`,
     "--remote-debugging-address=127.0.0.1",
     "--remote-debugging-port=43123",
     "--no-first-run",

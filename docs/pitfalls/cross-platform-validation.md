@@ -63,3 +63,19 @@
 **相关文件或命令**：`src/chatgpt/web-flow.ts`、`tests/integration/web-flow.test.ts`、`.github/workflows/windows.yml`、Windows Actions run `30532375079`。
 
 **适用范围**：提交确认、回复绑定、状态监控、慢磁盘环境、Windows CI 和真实网页瞬时状态捕获。
+
+## 跨平台路径测试不要硬编码 POSIX 绝对路径
+
+**现象**：登录修复提交的 macOS 本地 64 项测试全部通过，但 Windows Actions run `30542014545` 在全量测试步骤退出 1，类型检查已通过。
+
+**根因**：新增 Chrome 启动参数测试把预期 Profile 写死为 `/tmp/dedicated profile`；实现使用 Node `path.resolve`，Windows 会生成带盘符和反斜杠的原生绝对路径，字符串断言只在 POSIX 平台成立。
+
+**正确做法**：测试输入和预期值都使用 Node `path.resolve`/`path.join` 生成当前平台路径，只断言业务约束，不把 macOS 路径表示当成跨平台合同。
+
+**验证方式**：运行 `npm test`；推送修复后等待新的 `windows-latest` Actions 全步骤绿色。Windows CI 未变绿前不得把该修复写成跨平台通过。
+
+**禁止事项**：不得在跨平台测试中写死 `/tmp`、盘符或路径分隔符；不得删除路径中空格的覆盖；不得用跳过 Windows 测试掩盖断言错误。
+
+**相关文件或命令**：`tests/browser/session.test.ts`、`src/browser/profile.ts`、GitHub Actions run `30542014545` / job `90868799145`。
+
+**适用范围**：macOS/Windows Profile、输出目录、CLI 参数和所有路径字符串断言。
