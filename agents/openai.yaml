@@ -1,0 +1,12 @@
+name: gpt-web-image
+display_name: GPT 网页生图
+description: 通过 ChatGPT 网页完成文字生图、参考图改图和连续修改。
+activation:
+  implicit: true
+  explicit: "$gpt-web-image"
+  negative_intents:
+    - 查看图片
+    - 分析图片
+    - 压缩图片
+    - 仅讨论图片
+entrypoint: dist/src/cli.js

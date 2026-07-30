@@ -1,0 +1,28 @@
+{
+  "name": "gpt-web-image",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "gpt-web-image": "dist/src/cli.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test dist/tests/**/*.test.js",
+    "test:unit": "npm run build && node --test dist/tests/**/*.test.js",
+    "test:integration": "npm run build && node --test dist/tests/integration/*.test.js",
+    "install:user": "npm run build && node scripts/install.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "playwright-core": "^1.62.0",
+    "sharp": "^0.35.3"
+  }
+}

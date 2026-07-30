@@ -1,0 +1,41 @@
+name: Windows CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows-x64:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      GWI_REQUIRE_CHROME: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Ensure Google Chrome
+        shell: pwsh
+        run: |
+          $chrome = Join-Path $env:PROGRAMFILES "Google\Chrome\Application\chrome.exe"
+          if (-not (Test-Path $chrome)) { choco install googlechrome --no-progress -y }
+          if (-not (Test-Path $chrome)) { throw "Google Chrome is required for fixture tests" }
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit, contract, security, install and Chrome fixture tests
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Upload non-sensitive browser diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-fixture-diagnostics
+          path: .playwright/
+          if-no-files-found: ignore
+          retention-days: 7

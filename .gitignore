@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+.env.*
+.codex/
+.playwright/
+gpt-web-images/
+/diagnostics/
+profiles/
+*.partial
+*.tmp
+*.log
+task.json
+coverage/

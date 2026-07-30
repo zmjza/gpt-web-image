@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>Controlled ChatGPT Fixture</title></head>
+<body>
+  <main id="conversation" aria-live="polite">
+    <article data-message-author-role="assistant" data-turn="1"><p>历史回复</p><img src="/image.png?id=old" data-result-id="old" width="1" height="1" alt="历史图片"></article>
+  </main>
+  <form id="composer-form">
+    <textarea aria-label="Message ChatGPT"></textarea>
+    <input type="file" aria-label="Upload files" multiple>
+    <button type="submit" aria-label="Send prompt">发送</button>
+  </form>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const scenario = params.get('scenario') || 'success';
+    const count = Number(params.get('count') || '2');
+    const form = document.querySelector('#composer-form');
+    const input = form.querySelector('textarea');
+    const conversation = document.querySelector('#conversation');
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const prompt = input.value;
+      input.value = '';
+      conversation.insertAdjacentHTML('beforeend', `<article data-message-author-role="user"><p>${prompt.replace(/[<>&]/g, '')}</p></article>`);
+      const assistant = document.createElement('article');
+      assistant.dataset.messageAuthorRole = 'assistant';
+      assistant.dataset.state = 'queued';
+      assistant.innerHTML = '<p data-status>排队中</p>';
+      conversation.appendChild(assistant);
+      if (scenario === 'timeout') return;
+      if (scenario === 'failure') {
+        setTimeout(() => { assistant.dataset.state = 'failed'; assistant.innerHTML = '<p role="alert">429 rate limited</p>'; }, 50);
+        return;
+      }
+      setTimeout(() => { assistant.dataset.state = 'generating'; assistant.querySelector('[data-status]').textContent = '生成中'; }, 30);
+      for (let i = 1; i <= count; i += 1) {
+        setTimeout(() => {
+          const figure = document.createElement('figure');
+          figure.innerHTML = `<img src="/image.png?id=${i}" data-result-id="result-${i}" width="1" height="1" alt="结果 ${i}"><a role="button" data-result-id="result-${i}" aria-label="Download image ${i}" download="result-${i}.png" href="/image.png?id=${i}">下载</a>`;
+          assistant.appendChild(figure);
+          assistant.dataset.state = i === count ? 'complete' : 'generating';
+        }, 80 * i);
+      }
+    });
+  </script>
+</body>
+</html>
