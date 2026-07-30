@@ -24,7 +24,7 @@ test("T35 executes the documented relative CLI entrypoint", async () => {
   child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
   const exitCode = await new Promise<number | null>((resolve) => child.once("close", resolve));
   assert.equal(exitCode, 0);
-  assert.match(Buffer.concat(stdout).toString("utf8"), /gpt-web-image 0\.1\.0/);
+  assert.match(Buffer.concat(stdout).toString("utf8"), /gpt-web-image 0\.1\.1/);
 });
 
 test("T36 installs and upgrades an owned user skill without overwriting foreign data", async () => {

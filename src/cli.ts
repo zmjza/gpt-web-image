@@ -3,7 +3,6 @@
 import { mkdir, readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Page } from "playwright-core";
 import { loadConfig } from "./config/load.js";
 import { runDoctor } from "./commands/doctor.js";
 import { installUserSkill } from "./commands/install.js";
@@ -14,6 +13,7 @@ import { createTaskRecord, type TaskRecord, type TaskState } from "./tasks/model
 import { createOutputLayout } from "./images/output-layout.js";
 import { readTaskRecord, writeTaskRecord } from "./persistence/task-store.js";
 import { launchProfile } from "./browser/profile.js";
+import { waitForReadyComposer } from "./browser/login.js";
 import { runWebImageFlow } from "./chatgpt/web-flow.js";
 import { EventWriter } from "./events/writer.js";
 import { ImageReadyEmitter } from "./events/image-ready.js";
@@ -42,16 +42,6 @@ function parsePrompt(argv: string[]): string {
   if (explicit) return explicit;
   const positional = argv.filter((value, index) => index > 0 && !value.startsWith("--") && !["--count", "--ratio", "--reference", "--task-id", "--result-id", "--url", "--output-dir", "--config"].includes(argv[index - 1] ?? ""));
   return positional.join(" ").trim();
-}
-
-async function waitForReadyComposer(page: Page, timeoutMs: number): Promise<void> {
-  await page.waitForFunction(() => {
-    const visible = (element: Element) => { const rect = (element as HTMLElement).getBoundingClientRect(); return rect.width > 0 && rect.height > 0; };
-    const login = Array.from(document.querySelectorAll("button, a, [role='button']")).some((element) => visible(element) && /log\s*in|sign\s*in|登录/i.test((element.textContent || element.getAttribute("aria-label") || "")));
-    const verification = /verify|captcha|安全检查|验证/i.test((document.body.innerText ?? "").slice(0, 5000));
-    const composer = Array.from(document.querySelectorAll("[role='textbox'], textarea, input")).some((element) => visible(element) && /message|prompt|消息|提问|聊天/i.test(element.getAttribute("aria-label") ?? element.getAttribute("placeholder") ?? ""));
-    return !login && !verification && composer;
-  }, undefined, { timeout: timeoutMs });
 }
 
 async function runImageCommand(command: "generate" | "edit" | "refine", argv: string[], io: CliIo): Promise<number> {
@@ -147,7 +137,7 @@ async function runImageCommand(command: "generate" | "edit" | "refine", argv: st
 
 export async function runCli(argv: string[] = process.argv.slice(2), io: CliIo = DEFAULT_IO): Promise<number> {
   const command = argv[0];
-  if (command === "--version" || command === "version") { io.stdout("gpt-web-image 0.1.0"); return 0; }
+  if (command === "--version" || command === "version") { io.stdout("gpt-web-image 0.1.1"); return 0; }
   try {
     if (command === "doctor") {
       const config = await loadConfig({ configPath: option(argv, "--config") });

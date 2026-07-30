@@ -16,7 +16,7 @@ setup、generate、edit、resume 或 doctor 启动浏览器上下文。
 
 ## 逻辑
 
-解析专用 Profile 根目录，获取锁，检查归属标记，按 headed/headless 模式启动持久化上下文，正常关闭后再释放锁。
+解析专用 Profile 根目录，获取锁，检查归属标记。可视模式使用正式 Chrome 进程、专用 `user-data-dir` 和非零回环调试端口，再通过 CDP 连接监测；后台模式使用带沙箱的 Playwright 持久化上下文。正常关闭后再释放锁。
 
 ## 状态 / 边界
 

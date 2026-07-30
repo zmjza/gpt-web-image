@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { rename } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import type { Page } from "playwright-core";
+import { isVerificationChallenge } from "../browser/login.js";
 import { prepareSubmission, confirmSubmission } from "./submit.js";
 import { ImageDiscovery, type ImageCandidate } from "../images/discovery.js";
 import { downloadOriginal } from "../images/download.js";
@@ -63,7 +64,9 @@ export async function runWebImageFlow(options: WebImageFlowOptions): Promise<Web
   let initialPageState = "";
   if (options.submit !== false) {
     if (await page.getByRole("button", { name: /log\s*in|sign\s*in|登录/i }).count() > 0 || await page.getByRole("link", { name: /log\s*in|sign\s*in|登录/i }).count() > 0 || /\/auth\/login/i.test(page.url())) throw new Error("LOGIN_REQUIRED");
-    if (/verify|captcha|安全检查|验证/i.test((await page.locator("body").innerText()).slice(0, 5000))) throw new Error("HUMAN_VERIFICATION_REQUIRED");
+    const bodyText = (await page.locator("body").innerText().catch(() => "")).slice(0, 5000);
+    const hasChallengeFrame = await page.locator("iframe[src*='challenges.cloudflare.com'], [class*='cf-turnstile'], [data-sitekey]").count() > 0;
+    if (isVerificationChallenge({ url: page.url(), bodyText, hasChallengeFrame })) throw new Error("HUMAN_VERIFICATION_REQUIRED");
     const composer = page.getByRole("textbox", { name: /message|prompt|消息|提问|聊天/i });
     if (await composer.count() !== 1) {
       throw new Error("PAGE_STRUCTURE_CHANGED: composer");
