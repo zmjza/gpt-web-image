@@ -3,6 +3,7 @@
 import { mkdir, readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Page } from "playwright-core";
 import { loadConfig } from "./config/load.js";
 import { runDoctor } from "./commands/doctor.js";
 import { installUserSkill } from "./commands/install.js";
@@ -41,6 +42,16 @@ function parsePrompt(argv: string[]): string {
   if (explicit) return explicit;
   const positional = argv.filter((value, index) => index > 0 && !value.startsWith("--") && !["--count", "--ratio", "--reference", "--task-id", "--result-id", "--url", "--output-dir", "--config"].includes(argv[index - 1] ?? ""));
   return positional.join(" ").trim();
+}
+
+async function waitForReadyComposer(page: Page, timeoutMs: number): Promise<void> {
+  await page.waitForFunction(() => {
+    const visible = (element: Element) => { const rect = (element as HTMLElement).getBoundingClientRect(); return rect.width > 0 && rect.height > 0; };
+    const login = Array.from(document.querySelectorAll("button, a, [role='button']")).some((element) => visible(element) && /log\s*in|sign\s*in|登录/i.test((element.textContent || element.getAttribute("aria-label") || "")));
+    const verification = /verify|captcha|安全检查|验证/i.test((document.body.innerText ?? "").slice(0, 5000));
+    const composer = Array.from(document.querySelectorAll("[role='textbox'], textarea, input")).some((element) => visible(element) && /message|prompt|消息|提问|聊天/i.test(element.getAttribute("aria-label") ?? element.getAttribute("placeholder") ?? ""));
+    return !login && !verification && composer;
+  }, undefined, { timeout: timeoutMs });
 }
 
 async function runImageCommand(command: "generate" | "edit" | "refine", argv: string[], io: CliIo): Promise<number> {
@@ -104,7 +115,7 @@ async function runImageCommand(command: "generate" | "edit" | "refine", argv: st
         writer.write({ taskId: task.taskId, type: "warning", state: task.state, message: "需要在专用 Chrome 中完成人工登录或验证", completed: task.results.length, target: count, recoverable: true });
         await session.close();
         session = await launchProfile({ profileDir: config.profileDir, executablePath: chrome.path, headed: true, url: startUrl });
-        await session.page.getByRole("textbox", { name: /message|prompt|消息|提问/i }).waitFor({ state: "visible", timeout: config.hardTimeoutMs }).catch(() => { throw new Error(message); });
+        await waitForReadyComposer(session.page, config.hardTimeoutMs).catch(() => { throw new Error(message); });
         task.state = "ready"; await writeTaskRecord(taskPath, task);
         result = await executeRound();
       }
@@ -164,7 +175,10 @@ export async function runCli(argv: string[] = process.argv.slice(2), io: CliIo =
     if (command === "setup") {
       const config = await loadConfig({ configPath: option(argv, "--config") }); const chrome = inspectChrome({ configuredPath: config.chromeExecutablePath ?? undefined });
       if (!chrome.path) return 20; const session = await launchProfile({ profileDir: config.profileDir, executablePath: chrome.path, headed: true, url: "https://chatgpt.com/" });
-      try { await session.page.getByRole("textbox", { name: /message|prompt|消息|提问/i }).waitFor({ state: "visible", timeout: config.hardTimeoutMs }); io.stdout(JSON.stringify({ state: "ready" })); return 0; }
+      try {
+        await waitForReadyComposer(session.page, config.hardTimeoutMs);
+        io.stdout(JSON.stringify({ state: "ready" })); return 0;
+      }
       finally { await session.close(); }
     }
     io.stderr("未知命令。可用命令：setup, doctor, generate, edit, refine, resume, cancel, cleanup, install"); return 20;

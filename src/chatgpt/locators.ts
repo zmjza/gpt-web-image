@@ -6,7 +6,7 @@ export class SemanticLocatorError extends Error {
 }
 
 const MATCHERS: Record<SemanticTarget, (node: SemanticNode) => boolean> = {
-  composer: (node) => ["textbox", "combobox"].includes(node.role) && /message|prompt|消息|提问/i.test(node.name),
+  composer: (node) => ["textbox", "combobox"].includes(node.role) && /message|prompt|消息|提问|聊天/i.test(node.name),
   submit: (node) => node.role === "button" && /send|submit|发送/i.test(node.name),
   login: (node) => ["button", "link"].includes(node.role) && /log\s*in|sign\s*in|登录/i.test(node.name),
   verification: (node) => /verify|captcha|验证|安全检查/i.test(node.name),

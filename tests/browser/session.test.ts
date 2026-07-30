@@ -23,6 +23,7 @@ test("T18 requires a stable interactive composer, not a URL redirect", () => {
   assert.equal(classifyLoginPage({ url: "https://chatgpt.com/", hasInteractiveComposer: false, hasLoginControl: false, hasVerification: false }), "unknown");
   assert.equal(classifyLoginPage({ url: "https://chatgpt.com/auth/login", hasInteractiveComposer: false, hasLoginControl: true, hasVerification: false }), "needs_login");
   assert.equal(classifyLoginPage({ url: "https://chatgpt.com/", hasInteractiveComposer: false, hasLoginControl: false, hasVerification: true }), "needs_human_verification");
+  assert.equal(classifyLoginPage({ url: "https://chatgpt.com/", hasInteractiveComposer: true, hasLoginControl: true, hasVerification: false }), "needs_login");
   const tracker = new LoginReadinessTracker(1000);
   assert.equal(tracker.observe({ url: "https://chatgpt.com/", hasInteractiveComposer: true, hasLoginControl: false, hasVerification: false }, 0), "stabilizing");
   assert.equal(tracker.observe({ url: "https://chatgpt.com/", hasInteractiveComposer: true, hasLoginControl: false, hasVerification: false }, 1000), "ready");

@@ -3,8 +3,8 @@ export type LoginClassification = "ready" | "needs_login" | "needs_human_verific
 
 export function classifyLoginPage(signals: LoginPageSignals): LoginClassification {
   if (signals.hasVerification) return "needs_human_verification";
-  if (signals.hasInteractiveComposer) return "ready";
   if (signals.hasLoginControl || /\/auth\/(?:login|signup)/i.test(signals.url)) return "needs_login";
+  if (signals.hasInteractiveComposer) return "ready";
   return "unknown";
 }
 

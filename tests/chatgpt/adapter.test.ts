@@ -19,6 +19,10 @@ test("T21 resolves by accessible semantics and rejects conflicts", () => {
   assert.throws(() => resolveSemanticTarget([...nodes, { id: "other", role: "textbox", name: "Message ChatGPT", visible: true }], "composer"), SemanticLocatorError);
 });
 
+test("T21 accepts the current ChatGPT Chinese composer name", () => {
+  assert.equal(resolveSemanticTarget([{ id: "chat-a", role: "textbox", name: "与 ChatGPT 聊天", visible: true }], "composer").id, "chat-a");
+});
+
 test("T22 classifies confirmed, definitely absent and uncertain submissions without blind retry", () => {
   const prepared = prepareSubmission("画一张海报", 4, ["old"]);
   assert.ok(prepared.attemptId);

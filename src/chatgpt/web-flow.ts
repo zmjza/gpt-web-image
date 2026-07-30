@@ -62,10 +62,10 @@ export async function runWebImageFlow(options: WebImageFlowOptions): Promise<Web
   const userBaseline = await page.locator('[data-message-author-role="user"]').allTextContents();
   let initialPageState = "";
   if (options.submit !== false) {
-    const composer = page.getByRole("textbox", { name: /message|prompt|消息|提问/i });
+    if (await page.getByRole("button", { name: /log\s*in|sign\s*in|登录/i }).count() > 0 || await page.getByRole("link", { name: /log\s*in|sign\s*in|登录/i }).count() > 0 || /\/auth\/login/i.test(page.url())) throw new Error("LOGIN_REQUIRED");
+    if (/verify|captcha|安全检查|验证/i.test((await page.locator("body").innerText()).slice(0, 5000))) throw new Error("HUMAN_VERIFICATION_REQUIRED");
+    const composer = page.getByRole("textbox", { name: /message|prompt|消息|提问|聊天/i });
     if (await composer.count() !== 1) {
-      if (await page.getByRole("button", { name: /log\s*in|sign\s*in|登录/i }).count() > 0 || /\/auth\/login/i.test(page.url())) throw new Error("LOGIN_REQUIRED");
-      if (/verify|captcha|安全检查|验证/i.test((await page.locator("body").innerText()).slice(0, 5000))) throw new Error("HUMAN_VERIFICATION_REQUIRED");
       throw new Error("PAGE_STRUCTURE_CHANGED: composer");
     }
     if ((options.referencePaths?.length ?? 0) > 0) {
@@ -85,7 +85,11 @@ export async function runWebImageFlow(options: WebImageFlowOptions): Promise<Web
     }, assistantBaseline, { timeout: Math.min(options.timeoutMs, 10000) }).then((handle) => handle.jsonValue() as Promise<string>).catch(() => undefined);
     await submit.click();
     await page.waitForFunction((count) => document.querySelectorAll('[data-message-author-role="user"]').length > count, userBaseline.length, { timeout: Math.min(options.timeoutMs, 10000) });
-    const status = confirmSubmission(prepared, { userMessages: await page.locator('[data-message-author-role="user"]').allTextContents(), composerEmpty: (await composer.inputValue()) === "" });
+    const composerEmpty = await composer.evaluate((element) => {
+      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) return element.value === "";
+      return (element.textContent ?? "").trim() === "";
+    });
+    const status = confirmSubmission(prepared, { userMessages: await page.locator('[data-message-author-role="user"]').allTextContents(), composerEmpty });
     if (status !== "confirmed") throw new Error(`SUBMISSION_${status.toUpperCase()}`);
     const [capturedState] = await Promise.all([initialStatePromise, options.onSubmissionConfirmed?.()]);
     initialPageState = capturedState ?? "";
