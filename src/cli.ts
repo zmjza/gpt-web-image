@@ -2,6 +2,7 @@
 
 import { mkdir, readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { loadConfig } from "./config/load.js";
 import { runDoctor } from "./commands/doctor.js";
 import { installUserSkill } from "./commands/install.js";
@@ -170,4 +171,4 @@ export async function runCli(argv: string[] = process.argv.slice(2), io: CliIo =
   } catch (error) { io.stderr(error instanceof Error ? error.message : String(error)); return 70; }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) runCli().then((code) => { process.exitCode = code; });
+if (fileURLToPath(import.meta.url) === resolve(process.argv[1] ?? "")) runCli().then((code) => { process.exitCode = code; });

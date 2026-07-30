@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,6 +16,15 @@ test("T35 routes doctor and rejects unknown commands with documented exit codes"
   assert.equal(code, 0);
   assert.equal(typeof JSON.parse(out[0] ?? "{}").node.version, "string");
   assert.equal(await runCli(["unknown"], { stdout: () => undefined, stderr: () => undefined }), 20);
+});
+
+test("T35 executes the documented relative CLI entrypoint", async () => {
+  const child = spawn(process.execPath, ["dist/src/cli.js", "--version"], { cwd: process.cwd() });
+  const stdout: Buffer[] = [];
+  child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
+  const exitCode = await new Promise<number | null>((resolve) => child.once("close", resolve));
+  assert.equal(exitCode, 0);
+  assert.match(Buffer.concat(stdout).toString("utf8"), /gpt-web-image 0\.1\.0/);
 });
 
 test("T36 installs and upgrades an owned user skill without overwriting foreign data", async () => {
