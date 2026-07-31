@@ -7,7 +7,7 @@ dist/
 .playwright-cli/
 gpt-web-images/
 /diagnostics/
-profiles/
+/profiles/
 *.partial
 *.tmp
 *.log
