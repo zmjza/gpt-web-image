@@ -28,7 +28,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
       - name: Unit, contract, security, install and Chrome fixture tests
-        run: npm test
+        shell: pwsh
+        run: |
+          npm test 2>&1 | Tee-Object -FilePath windows-test-output.log
+          $testExitCode = $LASTEXITCODE
+          if ($testExitCode -ne 0) { exit $testExitCode }
       - name: Build
         run: npm run build
       - name: Upload non-sensitive browser diagnostics on failure
@@ -36,6 +40,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-fixture-diagnostics
-          path: .playwright/
+          path: |
+            .playwright/
+            windows-test-output.log
           if-no-files-found: ignore
           retention-days: 7
