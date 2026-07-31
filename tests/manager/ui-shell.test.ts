@@ -1,0 +1,71 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
+
+const shellFiles = [
+  "src/manager/public/index.html",
+  "src/manager/public/styles.css",
+  "src/manager/public/app.js",
+  "src/manager/public/mock-data.js",
+  "src/manager/public/ui-contracts.js",
+  "scripts/preview-manager.mjs"
+];
+
+test("T52 manager UI shell has a real previewable entry and scoped assets", () => {
+  for (const path of shellFiles) {
+    assert.equal(existsSync(path), true, `${path} must exist`);
+  }
+
+  const html = readFileSync("src/manager/public/index.html", "utf8");
+  assert.match(html, /data-manager-shell/);
+  assert.match(html, /manager\.css/);
+  assert.match(html, /app\.js/);
+  assert.doesNotMatch(html, /cdn\.tailwindcss\.com|cdnjs\.cloudflare\.com|fonts\.googleapis\.com/);
+
+  const css = readFileSync("src/manager/public/styles.css", "utf8");
+  assert.match(css, /\[data-manager-shell\]/);
+
+  const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
+    scripts?: Record<string, string>;
+  };
+  assert.equal(packageJson.scripts?.["preview:manager"], "npm run build && node scripts/preview-manager.mjs");
+});
+
+test("T52/T56 shell replaces mock placeholders with the local manager API", () => {
+  const source = [
+    readFileSync("src/manager/public/app.js", "utf8"),
+    readFileSync("src/manager/public/ui-contracts.js", "utf8")
+  ].join("\n");
+
+  assert.match(source, /fetch\s*\(/);
+  assert.match(source, /\/api\/profiles/);
+  assert.doesNotMatch(source, /mock-data\.js/);
+  assert.doesNotMatch(source, /TODO\(codex-(?:connect|state|validate)\)/);
+});
+
+test("T52 shell preserves the four Stitch views and profile dialog", () => {
+  const html = readFileSync("src/manager/public/index.html", "utf8");
+
+  for (const id of ["view-overview", "view-migration", "view-security", "view-detail", "profile-modal"]) {
+    assert.match(html, new RegExp(`id=["']${id}["']`), `${id} must be preserved`);
+  }
+
+  assert.match(html, /switchView\(['"]overview['"]\)/);
+  assert.match(html, /openModal\(\)/);
+  assert.match(readFileSync("src/manager/public/app.js", "utf8"), /window\.switchView/);
+});
+
+test("T52 preserves the Stitch visual asset as a local source reference", () => {
+  const html = readFileSync("src/manager/public/index.html", "utf8");
+  assert.equal(existsSync("src/manager/public/assets/background.png"), true);
+  assert.match(html, /assets\/background\.png/);
+});
+
+test("T62-T77 image UI preserves single-Profile request isolation and has no delete operation", () => {
+  const source = readFileSync("src/manager/public/app.js", "utf8");
+  assert.match(source, /AbortController/);
+  assert.match(source, /imageRequestVersion/);
+  assert.match(source, /\/images\/scan/);
+  assert.match(source, /generatedAt_desc/);
+  assert.doesNotMatch(source, /method\s*:\s*["']DELETE["'][\s\S]{0,200}images/);
+});

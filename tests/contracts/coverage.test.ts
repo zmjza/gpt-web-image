@@ -13,6 +13,42 @@ const IMPLEMENTED_FILES = [
   "tests/integration/web-flow.test.ts", ".github/workflows/windows.yml"
 ];
 
+const MANAGER_TASK_FILES: Record<string, readonly string[]> = {
+  T43: ["src/profiles/registry.ts", "tests/profiles/manager.test.ts"],
+  T44: ["src/profiles/directories.ts", "tests/profiles/directories.test.ts"],
+  T45: ["src/profiles/manager.ts", "tests/profiles/manager.test.ts"],
+  T46: ["src/profiles/migration.ts", "tests/profiles/directories.test.ts"],
+  T47: ["src/profiles/manager.ts", "tests/profiles/manager.test.ts"],
+  T48: ["src/browser/membership.ts", "tests/browser/membership-lease.test.ts"],
+  T49: ["src/browser/browser-lease.ts", "tests/browser/membership-lease.test.ts"],
+  T50: ["src/profiles/binding.ts", "tests/tasks/profile-binding.test.ts"],
+  T51: ["src/manager/server.ts", "tests/manager/server.test.ts"],
+  T52: ["src/manager/public/app.js", "tests/manager/ui-shell.test.ts"],
+  T53: ["src/profiles/manager.ts", "tests/profiles/manager.test.ts"],
+  T54: ["src/profiles/backup.ts", "tests/profiles/manager.test.ts"],
+  T55: ["src/profiles/backup.ts", "tests/profiles/manager.test.ts"],
+  T56: ["liran_docs/10-UI壳接入清单.md", "tests/manager/ui-shell.test.ts"],
+  T57: ["tests/profiles/manager.test.ts", "tests/manager/server.test.ts"],
+  T58: [".github/workflows/windows.yml", "tests/profiles/directories.test.ts"],
+  T59: ["docs/pitfalls/manager-ui-shell.md", "liran_docs/04-开发追踪.md"],
+  T62: ["src/manager/public/app.js", "tests/manager/ui-shell.test.ts"],
+  T63: ["src/images/manager-query.ts", "tests/images/manager-domain.test.ts"],
+  T64: ["src/images/manager-scanner.ts", "tests/images/manager-domain.test.ts"],
+  T65: ["src/images/manager-model.ts", "src/images/manager-index-store.ts"],
+  T66: ["src/images/manager-scanner.ts", "tests/images/manager-domain.test.ts"],
+  T67: ["src/images/manager-attribution.ts", "tests/images/manager-domain.test.ts"],
+  T68: ["src/images/manager-query.ts", "tests/images/manager-domain.test.ts"],
+  T69: ["src/images/manager-query.ts", "tests/images/manager-domain.test.ts"],
+  T70: ["src/images/manager-query.ts", "tests/images/manager-domain.test.ts"],
+  T71: ["src/images/manager-thumbnail.ts", "tests/images/manager-domain.test.ts"],
+  T72: ["src/images/manager-files.ts", "tests/images/manager-domain.test.ts"],
+  T73: ["src/images/manager-scanner.ts", "src/manager/public/app.js"],
+  T74: ["src/manager/server.ts", "tests/manager/server.test.ts"],
+  T75: ["design/stitch/18230660193198829480/52f2dc24e0cd4878861f315a7edefa28/index.html", "tests/manager/ui-shell.test.ts"],
+  T76: ["src/manager/public/index.html", "src/manager/public/styles.css"],
+  T77: ["tests/images/manager-domain.test.ts", "tests/manager/server.test.ts"]
+};
+
 test("T38 maps every internal implementation task T01-T38 to tests and files", () => {
   for (const file of IMPLEMENTED_FILES) assert.equal(existsSync(file), true, `missing ${file}`);
   const tests = [
@@ -31,4 +67,16 @@ test("T39 Windows workflow runs all non-account gates without real ChatGPT crede
   assert.match(workflow, /node-version: 22/);
   for (const command of ["npm ci", "npm run typecheck", "npm test", "npm run build"]) assert.match(workflow, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(workflow, /CHATGPT|OPENAI_API_KEY|password|cookie/i);
+});
+
+test("T57/T77 maps manager implementation tasks T43-T59 and T62-T77 to concrete files", () => {
+  const expected = [
+    ...Array.from({ length: 17 }, (_, index) => `T${43 + index}`),
+    ...Array.from({ length: 16 }, (_, index) => `T${62 + index}`)
+  ];
+  assert.deepEqual(Object.keys(MANAGER_TASK_FILES), expected);
+  for (const [taskId, files] of Object.entries(MANAGER_TASK_FILES)) {
+    assert.ok(files.length >= 2, `${taskId} must map implementation and evidence`);
+    for (const file of files) assert.equal(existsSync(file), true, `${taskId} missing ${file}`);
+  }
 });

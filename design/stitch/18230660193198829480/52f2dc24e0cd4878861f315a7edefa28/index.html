@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Profile 总览 - GPT Web Image</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+                  "outline-variant": "#c3c6d7",
+                  "surface-dim": "#d8dadc",
+                  "on-secondary": "#ffffff",
+                  "inverse-primary": "#b4c5ff",
+                  "surface-container": "#eceef0",
+                  "on-tertiary-fixed-variant": "#004c6e",
+                  "on-secondary-fixed-variant": "#38485d",
+                  "surface-container-high": "#e6e8ea",
+                  "primary-fixed": "#dbe1ff",
+                  "tertiary-container": "#0074a6",
+                  "secondary-container": "#d0e1fb",
+                  "tertiary-fixed-dim": "#89ceff",
+                  "on-secondary-container": "#54647a",
+                  "surface-tint": "#0053db",
+                  "background": "#f7f9fb",
+                  "surface-container-low": "#f2f4f6",
+                  "surface-container-highest": "#e0e3e5",
+                  "surface": "#f7f9fb",
+                  "on-surface-variant": "#434655",
+                  "on-tertiary": "#ffffff",
+                  "on-surface": "#191c1e",
+                  "on-secondary-fixed": "#0b1c30",
+                  "surface-container-lowest": "#ffffff",
+                  "on-primary-fixed": "#00174b",
+                  "inverse-on-surface": "#eff1f3",
+                  "error": "#ba1a1a",
+                  "tertiary": "#005a82",
+                  "outline": "#737686",
+                  "secondary-fixed-dim": "#b7c8e1",
+                  "secondary-fixed": "#d3e4fe",
+                  "on-background": "#191c1e",
+                  "primary": "#004ac6",
+                  "on-primary-container": "#eeefff",
+                  "on-primary": "#ffffff",
+                  "secondary": "#505f76",
+                  "error-container": "#ffdad6",
+                  "tertiary-fixed": "#c9e6ff",
+                  "on-tertiary-container": "#e4f2ff",
+                  "on-error": "#ffffff",
+                  "surface-bright": "#f7f9fb",
+                  "inverse-surface": "#2d3133",
+                  "surface-variant": "#e0e3e5",
+                  "primary-fixed-dim": "#b4c5ff",
+                  "primary-container": "#2563eb",
+                  "on-primary-fixed-variant": "#003ea8",
+                  "on-tertiary-fixed": "#001e2f",
+                  "on-error-container": "#93000a",
+                  "mint": {
+                    "50": "#f0fdf4",
+                    "100": "#dcfce7",
+                    "200": "#bbf7d0",
+                    "300": "#86efac",
+                    "400": "#4ade80",
+                    "500": "#10b981", // adjusted to Mint Green #10B981
+                    "600": "#059669",
+                    "700": "#047857",
+                    "800": "#065f46",
+                    "900": "#064e3b"
+                  }
+          },
+          "borderRadius": {
+                  "DEFAULT": "0.25rem",
+                  "lg": "0.5rem",
+                  "xl": "0.75rem",
+                  "2xl": "12px", // explicitly 12px for cards
+                  "full": "9999px"
+          },
+          "fontFamily": {
+                  "sans": ["Inter", "system-ui", "sans-serif"],
+                  "body-lg": [
+                          "Inter"
+                  ],
+                  "label-md": [
+                          "Inter"
+                  ],
+                  "headline-md": [
+                          "Inter"
+                  ],
+                  "body-md": [
+                          "Inter"
+                  ],
+                  "title-lg": [
+                          "Inter"
+                  ],
+                  "label-sm": [
+                          "Inter"
+                  ],
+                  "headline-lg": [
+                          "Inter"
+                  ],
+                  "display-lg": [
+                          "Inter"
+                  ],
+                  "title-md": [
+                          "Inter"
+                  ],
+                  "headline-lg-mobile": [
+                          "Inter"
+                  ]
+          },
+          boxShadow: {
+            'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+            'hover': '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="custom-animations">
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    body {
+      background-color: #f0fdf4;
+      background-image: radial-gradient(circle at top right, #e0f2fe 0%, transparent 40%),
+                        radial-gradient(circle at bottom left, #dcfce7 0%, transparent 40%);
+      background-attachment: fixed;
+    }
+
+    .glass-nav {
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .card-hover-effect {
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .card-hover-effect:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-hover-effect {
+      transition: all 0.2s ease;
+    }
+    .btn-hover-effect:hover {
+      transform: scale(1.02);
+    }
+    .btn-hover-effect:active {
+      transform: scale(0.98);
+    }
+
+    .fade-in-up {
+      animation: fadeInUp 0.5s ease-out forwards;
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    @keyframes fadeInUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .stagger-1 { animation-delay: 0.1s; }
+    .stagger-2 { animation-delay: 0.2s; }
+    .stagger-3 { animation-delay: 0.3s; }
+    .stagger-4 { animation-delay: 0.4s; }
+
+    /* Custom Table Styles for rounded corners */
+    .rounded-table-container {
+      border-radius: 1rem;
+      overflow: hidden;
+      background: white;
+    }
+    .rounded-table-container table {
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+    .rounded-table-container th:first-child,
+    .rounded-table-container td:first-child {
+      padding-left: 1.5rem;
+    }
+    .rounded-table-container th:last-child,
+    .rounded-table-container td:last-child {
+      padding-right: 1.5rem;
+    }
+    .rounded-table-container tr:last-child td:first-child {
+      border-bottom-left-radius: 1rem;
+    }
+    .rounded-table-container tr:last-child td:last-child {
+      border-bottom-right-radius: 1rem;
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+    }
+    .status-dot.active { background-color: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, 0.5); }
+    .status-dot.inactive { background-color: #9ca3af; }
+    .status-dot.warning { background-color: #f59e0b; }
+
+    /* View transition styles */
+    .view-section {
+      display: none;
+      animation: fadeIn 0.3s ease-out forwards;
+    }
+    .view-section.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Modal styles */
+    .modal-overlay {
+      display: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .modal-overlay.active {
+      display: flex;
+      opacity: 1;
+    }
+    .modal-content {
+      transform: scale(0.95) translateY(10px);
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .modal-overlay.active .modal-content {
+      transform: scale(1) translateY(0);
+    }
+    
+    .nav-link.active {
+      background-color: #ffffff;
+      color: #1f2937;
+      font-weight: 600;
+      border: 1px solid theme('colors.mint.200');
+      box-shadow: 0 2px 8px -2px rgba(16, 185, 129, 0.15);
+    }
+    .nav-link.inactive {
+      color: #4b5563;
+      background-color: transparent;
+      font-weight: 500;
+      border: 1px solid transparent;
+    }
+    .nav-link.inactive:hover {
+      color: #111827;
+      background-color: rgba(255, 255, 255, 0.6);
+    }
+  </style>
+</head>
+<body class="font-sans text-gray-800 min-h-screen pb-12 relative overflow-x-hidden">
+<!-- Background Decoration -->
+<div class="fixed top-0 left-0 w-full h-full -z-10 pointer-events-none opacity-50 bg-[url('https://lh3.googleusercontent.com/aida-public/AB6AXuB6DPOfjEN7k-BtPwCCDKCEIUHhAouTg3WOM5lnBfcNieTUuCcWVjHusz4umSYmn8dDWaEZJECz0YyLWLAacTK1r0YFbA0SmHR_rGkk6NYqSOy9WrzoAZB0TrTU87g0UG71Jsy6BGXs-YR0fvRthZnvkmX590SSt50LB6J5jc2ROtHajz-L8GaNL5X5GooP2_YXRqEZ6ixPzIEMJvgOk-pA5QnjmyNvYvN7ChsAOL-uD-0UqHwTuhkIgByGSzUv-O8bUZE')] bg-cover bg-center opacity-10 blur-[80px]"></div>
+<!-- BEGIN: Main Navigation -->
+<nav class="glass-nav fixed top-0 w-full z-40 border-b border-white/50 shadow-sm" data-purpose="main-navigation">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="flex justify-between items-center h-16">
+<!-- Left: Logo -->
+<div class="flex-shrink-0 flex items-center cursor-pointer" onclick="switchView('overview')">
+<div class="w-8 h-8 bg-mint-500 rounded-lg flex items-center justify-center text-white mr-3 shadow-md">
+<i class="fa-solid fa-image"></i>
+</div>
+<div class="flex flex-col">
+<span class="font-bold text-lg leading-tight text-gray-900">GPT Web Image</span>
+<span class="text-xs text-gray-500 font-medium">Profile 管理</span>
+</div>
+</div>
+<!-- Center: Navigation Links -->
+<div class="hidden md:flex space-x-2">
+<button class="nav-link inactive px-4 py-2 rounded-full text-sm flex items-center btn-hover-effect transition-all" id="nav-overview" onclick="switchView('overview')"><i class="fa-solid fa-border-all mr-2"></i> Profile 总览</button>
+<button class="nav-link inactive px-4 py-2 rounded-full text-sm flex items-center btn-hover-effect transition-all" id="nav-migration" onclick="switchView('migration')">
+<i class="fa-regular fa-folder-open mr-2"></i> 目录与迁移
+          </button><button class="nav-link active px-4 py-2 rounded-full text-sm flex items-center btn-hover-effect transition-all" id="nav-images" onclick="switchView('images')"><i class="fa-solid fa-image mr-2"></i> 图片管理</button>
+<button class="nav-link inactive px-4 py-2 rounded-full text-sm flex items-center btn-hover-effect transition-all" id="nav-security" onclick="switchView('security')">
+<i class="fa-solid fa-shield-halved mr-2"></i> 安全与备份
+          </button>
+</div>
+<!-- Right: Utilities & User -->
+<div class="flex items-center space-x-4">
+<div class="hidden lg:flex items-center text-sm text-gray-500 bg-white/60 px-3 py-1.5 rounded-full border border-gray-200 shadow-sm">
+<i class="fa-solid fa-network-wired mr-2 text-gray-400"></i> Local: 127.0.0.1
+          </div>
+<button class="bg-mint-500 text-white px-4 py-1.5 rounded-full text-sm font-medium shadow-md shadow-mint-500/30 btn-hover-effect flex items-center">
+<i class="fa-solid fa-rotate-right mr-2"></i> 刷新并扫描
+          </button>
+<div class="flex items-center space-x-2 border-l border-gray-300 pl-4">
+<button class="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors">
+<i class="fa-solid fa-gear"></i>
+</button>
+<button class="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors relative">
+<i class="fa-regular fa-bell"></i>
+<span class="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+</button>
+<button class="w-8 h-8 rounded-full bg-gray-200 border border-gray-300 flex items-center justify-center text-gray-600 hover:bg-gray-300 transition-colors ml-2">
+<i class="fa-regular fa-user"></i>
+</button>
+</div>
+</div>
+</div>
+</div>
+</nav>
+<!-- END: Main Navigation -->
+<!-- BEGIN: Main Content Area -->
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24" data-purpose="dashboard-content">
+<!-- VIEW: OVERVIEW -->
+<div class="view-section" id="view-overview">
+<!-- Active Profile Banner -->
+<div class="bg-gradient-to-r from-mint-50 to-mint-100 rounded-2xl p-6 mb-8 shadow-soft border border-mint-200/50 flex flex-col sm:flex-row justify-between items-center fade-in-up card-hover-effect relative overflow-hidden cursor-pointer" onclick="switchView('detail')">
+<!-- Decorative background elements for banner -->
+<div class="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 rounded-full bg-white opacity-40 blur-2xl pointer-events-none"></div>
+<div class="flex items-center relative z-10 pointer-events-none">
+<div class="w-14 h-14 bg-mint-500 rounded-xl flex items-center justify-center text-white text-2xl shadow-lg shadow-mint-500/40 mr-4">
+<i class="fa-solid fa-user-tie"></i>
+</div>
+<div>
+<h2 class="text-xl font-bold text-gray-900 flex items-center">
+              当前启用 Profile: Design_Master
+              <span class="ml-3 text-xs font-medium bg-mint-500 text-white px-2 py-0.5 rounded-full">Main account</span>
+</h2>
+<div class="flex items-center text-sm text-gray-500 mt-1 space-x-4">
+<span class="flex items-center"><i class="fa-regular fa-gem mr-1 text-blue-400"></i> Membership: Plus</span>
+<span class="flex items-center"><span class="status-dot active"></span> 已登录</span>
+<span class="flex items-center"><i class="fa-brands fa-chrome mr-1 text-gray-400"></i> Chrome: <span class="text-green-600 font-medium ml-1">运行中</span></span>
+</div>
+</div>
+</div>
+<div class="mt-4 sm:mt-0 relative z-10 pointer-events-auto">
+<button class="bg-white text-gray-700 px-5 py-2 rounded-xl text-sm font-semibold shadow-sm border border-gray-200 hover:bg-gray-50 btn-hover-effect flex items-center" onclick="event.stopPropagation(); openModal()">
+<i class="fa-solid fa-right-left mr-2 text-mint-500"></i> 切换 Profile
+          </button>
+</div>
+</div>
+<!-- Stats Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+<!-- Stat Card 1 -->
+<div class="bg-white rounded-2xl p-6 shadow-soft card-hover-effect fade-in-up stagger-1 flex justify-between items-center">
+<div>
+<p class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">Profile 总数</p>
+<h3 class="text-4xl font-bold text-gray-900">12</h3>
+</div>
+<div class="w-16 h-16 rounded-full bg-mint-50 flex items-center justify-center text-mint-400 text-2xl">
+<i class="fa-solid fa-layer-group"></i>
+</div>
+</div>
+<!-- Stat Card 2 -->
+<div class="bg-white rounded-2xl p-6 shadow-soft card-hover-effect fade-in-up stagger-2 flex justify-between items-center">
+<div>
+<p class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">已登录</p>
+<h3 class="text-4xl font-bold text-mint-500">8</h3>
+</div>
+<div class="w-16 h-16 rounded-full bg-mint-50 flex items-center justify-center text-mint-400 text-2xl">
+<i class="fa-solid fa-user-check"></i>
+</div>
+</div>
+<!-- Stat Card 3 -->
+<div class="bg-white rounded-2xl p-6 shadow-soft card-hover-effect fade-in-up stagger-3 flex justify-between items-center">
+<div>
+<p class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">可启用</p>
+<h3 class="text-4xl font-bold text-mint-600">5</h3>
+</div>
+<div class="w-16 h-16 rounded-full bg-mint-50 flex items-center justify-center text-mint-500 text-2xl">
+<i class="fa-solid fa-bolt"></i>
+</div>
+</div>
+<!-- Stat Card 4 -->
+<div class="bg-white rounded-2xl p-6 shadow-soft card-hover-effect fade-in-up stagger-4 flex justify-between items-center">
+<div>
+<p class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-1">正在使用</p>
+<h3 class="text-4xl font-bold text-gray-900">1</h3>
+</div>
+<div class="w-16 h-16 rounded-full bg-mint-50 flex items-center justify-center text-mint-400 text-2xl">
+<i class="fa-solid fa-desktop"></i>
+</div>
+</div>
+</div>
+<!-- Profile List Section -->
+<div class="fade-in-up stagger-4 mb-4 flex justify-between items-end">
+<div class="flex items-center">
+<div class="w-1 h-6 bg-mint-500 rounded-full mr-3"></div>
+<h2 class="text-xl font-bold text-gray-900">Profile 列表</h2>
+</div>
+<div class="flex items-center space-x-3">
+<button class="p-2 text-gray-500 hover:text-gray-800 bg-white rounded-lg shadow-sm border border-gray-200 btn-hover-effect">
+<i class="fa-solid fa-filter"></i>
+</button>
+<button class="bg-mint-600 text-white px-5 py-2 rounded-xl text-sm font-semibold shadow-md shadow-mint-500/30 btn-hover-effect flex items-center" onclick="openModal()">
+<i class="fa-solid fa-plus mr-2"></i> 创建 Profile
+          </button>
+</div>
+</div>
+<!-- Table Container -->
+<div class="rounded-table-container shadow-soft fade-in-up stagger-4">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-gray-50/50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+<th class="py-4">Profile 信息</th>
+<th class="py-4">账号状态</th>
+<th class="py-4">Chrome 状态</th>
+<th class="py-4">最后检测时间</th>
+<th class="py-4 text-right">操作</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-gray-100 bg-white">
+<!-- Row 1: Active -->
+<tr class="hover:bg-mint-50/30 transition-colors group cursor-pointer" onclick="switchView('detail')">
+<td class="py-4">
+<div class="flex flex-col">
+<div class="flex items-center">
+<span class="font-bold text-gray-900 mr-2">Design_Master</span>
+<span class="text-[10px] font-bold bg-mint-500 text-white px-1.5 py-0.5 rounded-sm">当前启用</span>
+</div>
+<span class="text-sm text-gray-500 mt-0.5">Main account</span>
+</div>
+</td>
+<td class="py-4">
+<div class="flex items-center space-x-2">
+<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-mint-100 text-mint-700 border border-mint-200">
+<span class="status-dot active"></span> 已登录
+                  </span>
+<span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-600 border border-blue-100">Plus</span>
+</div>
+</td>
+<td class="py-4">
+<div class="flex items-center text-sm font-medium text-mint-600">
+<i class="fa-brands fa-chrome mr-1.5"></i> 运行中
+                </div>
+</td>
+<td class="py-4 text-sm text-gray-500">
+                2023-10-27 10:00
+              </td>
+<td class="py-4 text-right">
+<div class="flex items-center justify-end space-x-2 pointer-events-auto">
+<button class="bg-mint-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-mint-700 transition-colors shadow-sm flex items-center btn-hover-effect" onclick="event.stopPropagation()">
+<i class="fa-solid fa-arrow-up-right-from-square mr-1.5 text-xs"></i> 打开浏览器
+                  </button>
+<button class="p-1.5 text-gray-400 hover:text-gray-700 rounded-md hover:bg-gray-100 transition-colors" onclick="event.stopPropagation(); openModal()">
+<i class="fa-solid fa-pen"></i>
+</button>
+<button class="p-1.5 text-gray-400 hover:text-gray-700 rounded-md hover:bg-gray-100 transition-colors" onclick="event.stopPropagation()">
+<i class="fa-solid fa-cloud-arrow-up"></i>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2: Running Task -->
+<tr class="hover:bg-gray-50 transition-colors group cursor-pointer border-t border-gray-100" onclick="switchView('detail')">
+<td class="py-4">
+<div class="flex flex-col">
+<span class="font-bold text-gray-900">Auto_Gen_01</span>
+<span class="text-sm text-gray-500 mt-0.5">Batch worker</span>
+</div>
+</td>
+<td class="py-4">
+<div class="flex items-center space-x-2">
+<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-mint-100 text-mint-700 border border-mint-200">
+<span class="status-dot active"></span> 已登录
+                  </span>
+<span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-50 text-purple-600 border border-purple-100">Pro</span>
+</div>
+</td>
+<td class="py-4">
+<div class="flex flex-col">
+<div class="flex items-center text-sm font-medium text-mint-600">
+<span class="status-dot active"></span> 任务运行中
+                  </div>
+<span class="text-xs text-gray-400 mt-0.5">生图任务运行中</span>
+</div>
+</td>
+<td class="py-4 text-sm text-gray-500">
+<div class="flex flex-col">
+<span>2023-10-27</span>
+<span>09:45</span>
+</div>
+</td>
+<td class="py-4 text-right">
+<div class="flex items-center justify-end space-x-2 pointer-events-auto">
+<button class="bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors flex items-center btn-hover-effect" onclick="event.stopPropagation()">
+<i class="fa-solid fa-stop mr-1.5 text-xs"></i> 停止任务
+                  </button>
+<button class="p-1.5 text-gray-400 hover:text-red-500 rounded-md hover:bg-red-50 transition-colors" onclick="event.stopPropagation()">
+<i class="fa-regular fa-trash-can"></i>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3: Inactive -->
+<tr class="hover:bg-gray-50 transition-colors group cursor-pointer border-t border-gray-100" onclick="switchView('detail')">
+<td class="py-4">
+<div class="flex flex-col">
+<span class="font-bold text-gray-900">Test_Profile</span>
+<span class="text-sm text-gray-400 mt-0.5">-</span>
+</div>
+</td>
+<td class="py-4">
+<div class="flex items-center space-x-2 opacity-70">
+<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+<span class="status-dot inactive"></span> 未登录
+                  </span>
+<span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">未知</span>
+</div>
+</td>
+<td class="py-4">
+<div class="text-sm text-gray-400">
+                  未运行
+                </div>
+</td>
+<td class="py-4 text-sm text-gray-400">
+                -
+              </td>
+<td class="py-4 text-right">
+<div class="flex items-center justify-end space-x-2 pointer-events-auto">
+<button class="bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors flex items-center btn-hover-effect" onclick="event.stopPropagation()">
+<i class="fa-solid fa-power-off mr-1.5 text-xs"></i> 启用
+                  </button>
+<button class="bg-mint-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-mint-700 transition-colors shadow-sm flex items-center btn-hover-effect opacity-50 cursor-not-allowed" disabled="" onclick="event.stopPropagation()">
+<i class="fa-solid fa-arrow-up-right-from-square mr-1.5 text-xs"></i> 打开浏览器
+                  </button>
+<button class="p-1.5 text-gray-400 hover:text-gray-700 rounded-md hover:bg-gray-100 transition-colors" onclick="event.stopPropagation(); openModal()">
+<i class="fa-solid fa-pen"></i>
+</button>
+<button class="p-1.5 text-gray-400 hover:text-red-500 rounded-md hover:bg-red-50 transition-colors" onclick="event.stopPropagation()">
+<i class="fa-regular fa-trash-can"></i>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- VIEW: MIGRATION -->
+<div class="view-section" id="view-migration">
+<div class="max-w-5xl mx-auto space-y-6">
+<!-- Page Header -->
+<div class="mb-10">
+<h2 class="text-3xl font-bold text-gray-900 mb-2">默认目录与迁移</h2>
+<p class="text-gray-500">管理您的 Profile 数据存储位置并安全地迁移数据。</p>
+</div>
+<!-- Current Directory Info Card -->
+<div class="bg-white border border-gray-100 rounded-2xl p-6 shadow-soft flex flex-col gap-6">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="text-xl font-bold text-gray-900 flex items-center gap-2 mb-1">
+<i class="fa-regular fa-folder-open text-mint-500"></i>
+                当前存储目录
+              </h3>
+<p class="text-sm text-gray-500">所有 Profile 数据默认写入此路径</p>
+</div>
+<button class="bg-mint-500 text-white font-medium text-sm h-10 px-5 rounded-full flex items-center gap-2 hover:bg-mint-600 transition-colors btn-hover-effect">
+              修改默认目录
+            </button>
+</div>
+<!-- Path Display -->
+<div class="bg-gray-50 font-mono text-sm text-gray-800 p-4 rounded-xl flex items-center justify-between border border-gray-200">
+<span class="truncate select-all text-gray-600">~/Library/Application Support/gpt-web-image</span>
+<button class="text-gray-400 hover:text-mint-500 transition-colors" title="Copy Path">
+<i class="fa-regular fa-copy"></i>
+</button>
+</div>
+<!-- Stats Grid -->
+<div class="grid grid-cols-3 gap-6 border-t border-gray-100 pt-6">
+<div class="flex flex-col gap-1">
+<span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Profile 数量</span>
+<span class="text-2xl font-bold text-gray-900 flex items-baseline gap-1">
+                12 <span class="text-sm text-gray-500 font-normal">个</span>
+</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">占用空间</span>
+<span class="text-2xl font-bold text-gray-900 flex items-baseline gap-1">
+                4.8 <span class="text-sm text-gray-500 font-normal">GB</span>
+</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">最近扫描</span>
+<span class="text-sm font-medium text-gray-700 mt-1">2023-10-27 10:30</span>
+</div>
+</div>
+</div>
+<!-- Pre-check Section (Inline for demo) -->
+<div class="bg-white border border-gray-100 rounded-2xl p-6 shadow-soft flex flex-col gap-6">
+<h3 class="text-xl font-bold text-gray-900 flex items-center gap-2 mb-1">
+<i class="fa-solid fa-right-left text-mint-500"></i>
+            切换默认目录与迁移预检
+          </h3>
+<p class="text-sm text-gray-500 mb-2">
+            检测到新目录为空或包含其他数据。请选择处理方式：
+          </p>
+<div class="space-y-4">
+<!-- Option A (Recommended) -->
+<label class="block relative bg-mint-50/50 border-2 border-mint-400 rounded-xl p-5 cursor-pointer hover:bg-mint-50 transition-colors">
+<div class="flex items-start gap-4">
+<div class="mt-1">
+<input checked="" class="w-5 h-5 text-mint-500 focus:ring-mint-500 border-gray-300" name="migration_option" type="radio"/>
+</div>
+<div class="flex-1">
+<div class="flex items-center gap-3 mb-1.5">
+<span class="text-[15px] text-mint-700 font-bold">迁移</span>
+<span class="bg-mint-400 text-white text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold">Recommended</span>
+</div>
+<p class="text-sm text-gray-600">
+                    复制全部 Profile，校验成功后切换目录。确保数据完整无缝衔接。
+                  </p>
+</div>
+</div>
+</label>
+<!-- Option B -->
+<label class="block relative bg-white border-2 border-transparent ring-1 ring-gray-200 rounded-xl p-5 cursor-pointer hover:bg-gray-50 transition-colors">
+<div class="flex items-start gap-4">
+<div class="mt-1">
+<input class="w-5 h-5 text-mint-500 focus:ring-mint-500 border-gray-300" name="migration_option" type="radio"/>
+</div>
+<div class="flex-1">
+<div class="text-[15px] text-gray-900 font-bold mb-1.5">保留</div>
+<p class="text-sm text-gray-600">
+                    旧 Profile 保留在历史目录，仅切换新目录为默认。适用于重新开始。
+                  </p>
+</div>
+</div>
+</label>
+</div>
+<div class="flex justify-end mt-4">
+<button class="bg-mint-500 text-white font-medium text-sm h-10 px-8 rounded-full hover:bg-mint-600 transition-colors shadow-sm btn-hover-effect">
+                确认执行
+            </button>
+</div>
+</div>
+</div>
+</div>
+<!-- VIEW: SECURITY & BACKUP -->
+<div class="view-section" id="view-security">
+<div class="max-w-5xl mx-auto space-y-6">
+<!-- Page Header -->
+<div class="mb-10">
+<h2 class="text-3xl font-bold text-gray-900 mb-2">安全与备份</h2>
+<p class="text-gray-500">创建整个数据目录的快照以防数据丢失。</p>
+</div>
+<div class="bg-white border border-gray-100 rounded-2xl p-6 shadow-soft flex flex-col gap-6">
+<div>
+<h3 class="text-xl font-bold text-gray-900 flex items-center gap-2 mb-1">
+<i class="fa-solid fa-shield-halved text-mint-500"></i>
+              完整备份与恢复
+            </h3>
+<p class="text-sm text-gray-500">为所有本地 Profile 数据创建独立备份档案。</p>
+</div>
+<!-- Warning Box -->
+<div class="bg-amber-50 border border-amber-200 p-4 rounded-xl flex gap-3 items-start">
+<i class="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5"></i>
+<div class="text-sm text-amber-900">
+<strong class="font-bold">警告：</strong> 备份包含 Chrome 登录数据和 Cookie，文件未加密，请妥善保管在安全位置。
+            </div>
+</div>
+<!-- Backup List (Mock) -->
+<div class="border border-gray-100 rounded-xl overflow-hidden">
+<div class="bg-gray-50 px-4 py-3 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider flex justify-between">
+<span>可用备份</span>
+<span>大小</span>
+</div>
+<div class="divide-y divide-gray-100 bg-white">
+<div class="flex justify-between items-center px-4 py-3 hover:bg-gray-50">
+<div class="flex items-center gap-3">
+<i class="fa-solid fa-file-zipper text-gray-400"></i>
+<div>
+<div class="text-sm font-medium text-gray-900">backup_20231027_1000.zip</div>
+<div class="text-xs text-gray-500">2023-10-27 10:00:00</div>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<span class="text-sm text-gray-500">1.2 GB</span>
+<button class="text-mint-600 hover:text-mint-700 font-medium text-sm">恢复</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="flex gap-4 border-t border-gray-100 pt-6">
+<button class="bg-mint-500 text-white font-medium text-sm h-10 px-5 rounded-full flex items-center gap-2 hover:bg-mint-600 transition-colors btn-hover-effect">
+<i class="fa-solid fa-box-archive text-sm"></i>
+              立即备份全部
+            </button>
+<button class="bg-white border border-gray-200 text-gray-700 font-medium text-sm h-10 px-5 rounded-full flex items-center gap-2 hover:bg-gray-50 transition-colors btn-hover-effect">
+<i class="fa-solid fa-clock-rotate-left text-sm"></i>
+              选择目录恢复
+            </button>
+</div>
+</div>
+</div>
+</div>
+<!-- VIEW: DETAIL (Design_Master) -->
+<div class="view-section" id="view-detail">
+<div class="max-w-6xl mx-auto space-y-6">
+<!-- Back Button -->
+<button class="mb-4 text-gray-500 hover:text-gray-900 flex items-center text-sm font-medium transition-colors" onclick="switchView('overview')">
+<i class="fa-solid fa-arrow-left mr-2"></i> 返回总览
+        </button>
+<!-- Profile Identity Header -->
+<div class="flex flex-col gap-2 mb-6">
+<div class="flex items-center gap-4">
+<h1 class="text-3xl font-bold text-gray-900">Design_Master</h1>
+<span class="px-3 py-1 bg-mint-100 text-mint-700 rounded-full text-xs font-semibold">Main account</span>
+</div>
+<div class="flex items-center gap-2 text-mint-600 font-mono text-sm bg-mint-50 px-4 py-2 rounded-full inline-flex w-fit border border-mint-100">
+<i class="fa-regular fa-folder-open"></i>
+<span>/Users/user/gpt-web-image/Design_Master</span>
+</div>
+</div>
+<!-- Action Toolbar -->
+<div class="flex items-center gap-3 py-2 mb-4">
+<button class="h-10 px-5 bg-mint-100 text-mint-700 rounded-full text-sm font-semibold hover:bg-mint-200 transition-colors flex items-center gap-2 shadow-sm btn-hover-effect">
+<i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+            打开浏览器
+          </button>
+<button class="h-10 px-5 bg-white border border-gray-200 text-gray-700 rounded-full text-sm font-medium hover:bg-gray-50 transition-colors flex items-center gap-2 shadow-sm btn-hover-effect">
+<i class="fa-solid fa-rotate text-xs"></i>
+            重新检测状态
+          </button>
+<button class="h-10 px-5 bg-white border border-gray-200 text-gray-700 rounded-full text-sm font-medium hover:bg-gray-50 transition-colors flex items-center gap-2 shadow-sm btn-hover-effect">
+<i class="fa-solid fa-floppy-disk text-xs"></i>
+            创建独立备份
+          </button>
+</div>
+<!-- Detailed Stats Grid (Bento Style) -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- Timing Card -->
+<div class="bg-white border border-gray-100 rounded-2xl p-6 flex flex-col gap-4 shadow-soft">
+<div class="flex items-center gap-2 text-mint-600 font-semibold text-sm uppercase tracking-wider">
+<i class="fa-regular fa-clock"></i>
+              时间信息
+            </div>
+<div class="space-y-4">
+<div class="flex justify-between items-center border-b border-gray-50 pb-2">
+<span class="text-sm text-gray-500">创建时间</span>
+<span class="font-mono text-sm text-gray-900">2023-01-15</span>
+</div>
+<div class="flex justify-between items-center border-b border-gray-50 pb-2">
+<span class="text-sm text-gray-500">最后使用</span>
+<span class="font-mono text-sm text-gray-900">2023-10-27</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-sm text-gray-500">最后检测</span>
+<span class="font-mono text-sm text-gray-900">2023-10-27 10:00</span>
+</div>
+</div>
+</div>
+<!-- Account Status Card -->
+<div class="bg-white border border-gray-100 rounded-2xl p-6 flex flex-col gap-4 shadow-soft">
+<div class="flex items-center gap-2 text-mint-600 font-semibold text-sm uppercase tracking-wider">
+<i class="fa-regular fa-circle-user"></i>
+              GPT 账号状态
+            </div>
+<div class="space-y-4">
+<div class="flex flex-col gap-2 border-b border-gray-50 pb-3">
+<span class="text-sm text-gray-500">登录状态</span>
+<div class="flex items-center gap-2">
+<span class="status-dot active"></span>
+<span class="text-lg text-gray-900 font-medium">已登录</span>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<span class="text-sm text-gray-500">会员等级</span>
+<div>
+<span class="px-3 py-1 bg-mint-50 text-mint-600 border border-mint-100 rounded-md text-xs font-medium">Plus</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Tech Data Card -->
+<div class="bg-white border border-gray-100 rounded-2xl p-6 flex flex-col gap-4 shadow-soft">
+<div class="flex items-center gap-2 text-mint-600 font-semibold text-sm uppercase tracking-wider">
+<i class="fa-solid fa-microchip"></i>
+              系统状态
+            </div>
+<div class="space-y-4">
+<div class="flex flex-col gap-2 border-b border-gray-50 pb-3">
+<span class="text-sm text-gray-500">Chrome 数据</span>
+<span class="text-lg text-gray-900 font-medium">存在 <span class="text-gray-400 font-normal text-sm">(Creds available)</span></span>
+</div>
+<div class="flex flex-col gap-2">
+<span class="text-sm text-gray-500">进程状态</span>
+<div class="flex items-center gap-2 text-gray-500">
+<i class="fa-regular fa-circle-stop"></i>
+<span class="text-lg">未运行</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Danger Zone -->
+<div class="mt-8 border border-red-200 bg-red-50 rounded-2xl p-6 relative overflow-hidden shadow-soft">
+<div class="absolute left-0 top-0 bottom-0 w-1.5 bg-red-500"></div>
+<div class="ml-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+<div>
+<h3 class="text-lg font-bold text-red-600 flex items-center gap-2">
+<i class="fa-solid fa-triangle-exclamation"></i>
+                安全操作 (不可逆)
+              </h3>
+<p class="text-sm text-red-800/80 mt-2 max-w-xl">
+                永久删除此 Profile 及其所有关联的本地配置和缓存数据。此操作无法撤销。
+              </p>
+</div>
+<button class="h-10 px-6 bg-red-600 text-white rounded-full text-sm font-semibold hover:bg-red-700 transition-colors whitespace-nowrap shadow-sm flex items-center gap-2 btn-hover-effect">
+<i class="fa-regular fa-trash-can"></i>
+              删除 Profile
+            </button>
+</div>
+</div>
+</div>
+</div>
+<!-- VIEW: IMAGES -->
+<div class="view-section active" id="view-images">
+<div class="max-w-7xl mx-auto space-y-6">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
+<div>
+<h2 class="text-3xl font-bold text-gray-900 mb-2">图片管理</h2>
+<p class="text-gray-500">按 Profile 查看本地生成图片</p>
+</div>
+<div class="flex items-center gap-3">
+<div class="relative w-64">
+<select class="w-full h-10 pl-4 pr-10 border border-gray-200 rounded-xl bg-white text-sm focus:ring-mint-500 focus:border-mint-500 outline-none appearance-none">
+<option>Design_Master (当前启用)</option>
+<option>Auto_Gen_01</option>
+<option>Test_Profile</option>
+</select>
+<i class="fa-solid fa-chevron-down absolute right-4 top-3 text-gray-400 pointer-events-none text-xs"></i>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+<div class="bg-white p-4 rounded-2xl shadow-soft border border-gray-100 flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-mint-50 flex items-center justify-center text-mint-500">
+<i class="fa-solid fa-image text-xl"></i>
+</div>
+<div>
+<p class="text-xs text-gray-500 uppercase font-bold tracking-wider">图片总数</p>
+<p class="text-2xl font-bold text-gray-900">1,284</p>
+</div>
+</div>
+<div class="bg-white p-4 rounded-2xl shadow-soft border border-gray-100 flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-500">
+<i class="fa-solid fa-clock text-xl"></i>
+</div>
+<div>
+<p class="text-xs text-gray-500 uppercase font-bold tracking-wider">最近生成</p>
+<p class="text-2xl font-bold text-gray-900">12 分钟前</p>
+</div>
+</div>
+<div class="bg-white p-4 rounded-2xl shadow-soft border border-gray-100 flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center text-purple-500">
+<i class="fa-solid fa-folder text-xl"></i>
+</div>
+<div>
+<p class="text-xs text-gray-500 uppercase font-bold tracking-wider">项目数量</p>
+<p class="text-2xl font-bold text-gray-900">8</p>
+</div>
+</div>
+</div>
+<div class="bg-white p-4 rounded-2xl shadow-soft border border-gray-100 space-y-4">
+<div class="flex flex-wrap items-center gap-3">
+<div class="relative flex-1 min-w-[200px]">
+<i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-gray-400"></i>
+<input class="w-full h-10 pl-10 pr-4 border border-gray-200 rounded-lg text-sm focus:ring-mint-500 focus:border-mint-500" placeholder="搜索文件名..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<button class="h-10 px-4 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 flex items-center gap-2">
+<i class="fa-regular fa-calendar"></i> 时间范围
+          </button>
+<button class="h-10 px-4 border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 flex items-center gap-2">
+<i class="fa-solid fa-filter"></i> 筛选
+          </button>
+</div>
+<div class="h-6 w-px bg-gray-200 mx-1"></div>
+<div class="flex bg-gray-100 p-1 rounded-lg">
+<button class="p-1.5 bg-white rounded shadow-sm text-mint-600"><i class="fa-solid fa-grip"></i></button>
+<button class="p-1.5 text-gray-500 hover:text-gray-700"><i class="fa-solid fa-list"></i></button>
+</div>
+</div>
+</div>
+<!-- Enhanced Image Cards Grid -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+<!-- Card 1: Success -->
+<div class="group bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-soft hover:shadow-hover transition-all cursor-pointer flex flex-col h-full" onclick="openImageModal()">
+<div class="aspect-square bg-gray-100 relative overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZdM_fpW6iM4mhLit5zOnVDNwCyFZodmmzMsyH1qSvmSKJHyBj5jdu9pOx1mBFSxEeODhS8scyeSvyVPzQGmDckGs4KxOYS_yNo-RlXWi5KWrrLADNpYGRLrobzEWhl_GXCxQHREupIp03zdrddVkf-U5ThNImzw61vgGwClyJhVEKOdObpRACtcQrFCDlumtXevmapbr2w_iR-kYhHzru0u4vKUxE1wnMH_hdLQSC_n03SGVFihLS8Q"/>
+<div class="absolute top-2 right-2">
+<span class="px-2 py-1 bg-mint-500/90 text-white text-[10px] font-bold rounded backdrop-blur-sm uppercase tracking-wider shadow-sm">SUCCESS</span>
+</div>
+<div class="absolute bottom-2 left-2 flex gap-1">
+<span class="px-1.5 py-0.5 bg-black/60 text-white text-[10px] font-medium rounded backdrop-blur-sm">Text to Image</span>
+</div>
+</div>
+<div class="p-3 flex flex-col flex-grow">
+<p class="text-sm font-bold text-gray-900 truncate mb-1" title="cyberpunk_city_landscape_v2_final.png">cyberpunk_city_landscape_v2_final.png</p>
+<p class="text-xs text-mint-600 font-medium truncate mb-2">Project: Cyberpunk World / Task: 001</p>
+<div class="mt-auto pt-2 border-t border-gray-50 flex justify-between items-center text-[11px] text-gray-500">
+<span class="flex items-center gap-1"><i class="fa-regular fa-clock"></i> 10:30</span>
+<span class="bg-gray-100 px-1.5 py-0.5 rounded font-mono">1024x1024</span>
+</div>
+<div class="flex justify-between items-center text-[10px] text-gray-400 mt-1">
+<span>PNG</span>
+<span>2.4 MB</span>
+</div>
+</div>
+</div>
+<!-- Card 2: Processing -->
+<div class="group bg-white rounded-2xl overflow-hidden border border-mint-200 shadow-soft hover:shadow-hover transition-all cursor-pointer flex flex-col h-full ring-1 ring-mint-100">
+<div class="aspect-square bg-mint-50/50 relative overflow-hidden flex flex-col items-center justify-center">
+<div class="w-10 h-10 border-3 border-mint-200 border-t-mint-500 rounded-full animate-spin mb-2"></div>
+<span class="text-xs text-mint-600 font-medium">Generating... 65%</span>
+<div class="absolute top-2 right-2">
+<span class="px-2 py-1 bg-blue-500/90 text-white text-[10px] font-bold rounded backdrop-blur-sm uppercase tracking-wider shadow-sm">PROCESSING</span>
+</div>
+</div>
+<div class="p-3 flex flex-col flex-grow opacity-70">
+<p class="text-sm font-bold text-gray-900 truncate mb-1">generating_asset_02...</p>
+<p class="text-xs text-mint-600 font-medium truncate mb-2">Project: Sci-Fi Assets</p>
+<div class="mt-auto pt-2 border-t border-gray-50 flex justify-between items-center text-[11px] text-gray-500">
+<span class="flex items-center gap-1"><i class="fa-regular fa-clock"></i> Just now</span>
+<span class="bg-gray-100 px-1.5 py-0.5 rounded font-mono">1024x1024</span>
+</div>
+<div class="flex justify-between items-center text-[10px] text-gray-400 mt-1">
+<span>--</span>
+<span>--</span>
+</div>
+</div>
+</div>
+<!-- Card 3: File Missing -->
+<div class="group bg-white rounded-2xl overflow-hidden border border-red-100 shadow-soft flex flex-col h-full opacity-70">
+<div class="aspect-square bg-red-50 flex flex-col items-center justify-center text-red-300 gap-2 relative">
+<i class="fa-solid fa-file-circle-xmark text-3xl"></i>
+<span class="text-xs font-medium text-red-400">File Missing</span>
+<div class="absolute top-2 right-2">
+<span class="px-2 py-1 bg-red-500/90 text-white text-[10px] font-bold rounded backdrop-blur-sm uppercase tracking-wider shadow-sm">ERROR</span>
+</div>
+</div>
+<div class="p-3 flex flex-col flex-grow">
+<p class="text-sm font-bold text-gray-500 truncate mb-1 line-through" title="missing_asset_01.png">missing_asset_01.png</p>
+<p class="text-xs text-gray-400 font-medium truncate mb-2">Project: Unknown</p>
+<div class="mt-auto pt-2 border-t border-gray-50 flex justify-between items-center text-[11px] text-gray-400">
+<span>2023-10-26</span>
+<span class="bg-gray-100 px-1.5 py-0.5 rounded font-mono">--</span>
+</div>
+<div class="flex justify-between items-center text-[10px] text-gray-400 mt-1">
+<span>--</span>
+<span>--</span>
+</div>
+</div>
+</div>
+<!-- Card 4: Scanning State (Placeholder for grid) -->
+<div class="group bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-soft flex flex-col h-full">
+<div class="aspect-square bg-gray-50 relative overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-80" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBlB6Hc21_J1tkTBcI5G9UBUlkWtHr3emSULnhcN5vSqJ1nUvuI1p92KTh9NlCGEnG2RGPa4KAc7K9xNKZvpd3VO6zS-224ogJM4a6uCZqWoR2lUqTEEedvAvwn8GsndqdsZ8JNicDyJOvzQqw2IshknoyB43X9OV5FSvstysHz9q0ETzOeMfh37rjnSeFfGoEb3iclSOzqjbKowc9FIU6SDcw89GF6_MgAFaXyS0Jq3F2dzFahdOgTgw"/>
+<div class="absolute top-2 right-2">
+<span class="px-2 py-1 bg-mint-500/90 text-white text-[10px] font-bold rounded backdrop-blur-sm uppercase tracking-wider shadow-sm">SUCCESS</span>
+</div>
+<div class="absolute bottom-2 left-2 flex gap-1">
+<span class="px-1.5 py-0.5 bg-black/60 text-white text-[10px] font-medium rounded backdrop-blur-sm">Image to Image</span>
+</div>
+</div>
+<div class="p-3 flex flex-col flex-grow">
+<p class="text-sm font-bold text-gray-900 truncate mb-1" title="abstract_waves_render_final_v3.jpg">abstract_waves_render_final_v3.jpg</p>
+<p class="text-xs text-mint-600 font-medium truncate mb-2">Task: Backgrounds / Gen: 04</p>
+<div class="mt-auto pt-2 border-t border-gray-50 flex justify-between items-center text-[11px] text-gray-500">
+<span class="flex items-center gap-1"><i class="fa-regular fa-clock"></i> Yesterday</span>
+<span class="bg-gray-100 px-1.5 py-0.5 rounded font-mono">1920x1080</span>
+</div>
+<div class="flex justify-between items-center text-[10px] text-gray-400 mt-1">
+<span>JPG</span>
+<span>1.8 MB</span>
+</div>
+</div>
+</div>
+<!-- Missing System States Sections -->
+<!-- State: No Profile Selected -->
+<div class="col-span-full py-16 flex flex-col items-center justify-center text-center bg-gray-50/50 rounded-2xl border border-dashed border-gray-200 mt-8">
+<div class="w-16 h-16 bg-white rounded-full flex items-center justify-center text-gray-300 shadow-sm mb-4">
+<i class="fa-regular fa-id-badge text-2xl"></i>
+</div>
+<h3 class="text-lg font-bold text-gray-900 mb-1">未选择 Profile</h3>
+<p class="text-sm text-gray-500 max-w-sm mb-4">请在上方下拉菜单中选择一个 Profile 以查看其对应的本地生成图片库。</p>
+</div>
+<!-- State: No Images Found -->
+<div class="col-span-full py-16 flex flex-col items-center justify-center text-center bg-gray-50/50 rounded-2xl border border-dashed border-gray-200 mt-4">
+<div class="w-16 h-16 bg-white rounded-full flex items-center justify-center text-gray-300 shadow-sm mb-4">
+<i class="fa-regular fa-image text-2xl"></i>
+</div>
+<h3 class="text-lg font-bold text-gray-900 mb-1">该 Profile 无图片</h3>
+<p class="text-sm text-gray-500 max-w-sm">当前 Profile 目录下未找到任何生成的图片文件。</p>
+</div>
+<!-- State: No Results (Search/Filter) -->
+<div class="col-span-full py-16 flex flex-col items-center justify-center text-center mt-4">
+<i class="fa-solid fa-magnifying-glass text-5xl text-gray-200 mb-4"></i>
+<h3 class="text-lg font-bold text-gray-900 mb-1">未找到符合条件的图片</h3>
+<p class="text-sm text-gray-500 mb-4">尝试调整搜索关键词或放宽筛选条件。</p>
+<button class="text-mint-600 text-sm font-bold hover:underline">重置所有筛选条件</button>
+</div>
+<!-- State: Scanning... -->
+<div class="col-span-full py-16 flex flex-col items-center justify-center text-center bg-white rounded-2xl border border-gray-100 shadow-sm mt-4">
+<div class="w-12 h-12 border-4 border-mint-100 border-t-mint-500 rounded-full animate-spin mb-4"></div>
+<h3 class="text-lg font-bold text-gray-900 mb-2">正在扫描目录...</h3>
+<div class="w-64 h-2 bg-gray-100 rounded-full overflow-hidden">
+<div class="h-full bg-mint-500 w-1/3 rounded-full"></div>
+</div>
+<p class="text-xs text-gray-400 mt-2">已发现 142 个文件</p>
+</div>
+<!-- State: Scan Failed / Directory Error -->
+<div class="col-span-full py-12 flex flex-col items-center justify-center text-center bg-red-50/50 rounded-2xl border border-red-100 mt-4">
+<div class="w-16 h-16 bg-white rounded-full flex items-center justify-center text-red-400 shadow-sm mb-4">
+<i class="fa-solid fa-folder-open text-2xl"></i>
+</div>
+<h3 class="text-lg font-bold text-red-600 mb-1">无法访问目录</h3>
+<p class="text-sm text-red-500/80 max-w-sm mb-4">扫描失败：目录不存在或权限被拒绝。请检查配置路径。</p>
+<button class="bg-white border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors">重新扫描</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- END: Main Content Area -->
+<!-- Modal Overlay (Create/Edit Profile) -->
+<div class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 modal-overlay items-center justify-center" id="profile-modal">
+<!-- Modal Content -->
+<div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden modal-content border border-gray-100 flex flex-col max-h-[90vh]">
+<!-- Header -->
+<div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+<h2 class="text-lg font-bold text-gray-900">创建新 Profile</h2>
+<button class="text-gray-400 hover:text-gray-700 transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100" onclick="closeModal()">
+<i class="fa-solid fa-xmark text-lg"></i>
+</button>
+</div>
+<!-- Body (Scrollable) -->
+<div class="p-6 overflow-y-auto space-y-6">
+<!-- Warning Alert -->
+<div class="bg-red-50 border border-red-100 rounded-xl p-4 flex gap-3 items-start">
+<i class="fa-solid fa-circle-exclamation text-red-500 mt-0.5"></i>
+<p class="text-red-800 text-sm leading-relaxed">
+<strong>提示：</strong>禁止导入日常使用的 Chrome Profile，以免数据冲突。
+          </p>
+</div>
+<!-- Form Fields -->
+<div class="space-y-4">
+<!-- Field 1: Profile 名称 -->
+<div class="space-y-1.5">
+<label class="block text-xs font-semibold text-gray-700 uppercase tracking-wide">
+              Profile 名称 <span class="text-red-500">*</span>
+</label>
+<input class="w-full h-10 px-4 border border-gray-200 rounded-lg bg-gray-50/50 text-sm text-gray-900 placeholder:text-gray-400 focus:border-mint-500 focus:ring-1 focus:ring-mint-500 outline-none transition-shadow" placeholder="例如：生图专用-01" type="text"/>
+</div>
+<!-- Field 2: GPT 账号备注 -->
+<div class="space-y-1.5">
+<label class="block text-xs font-semibold text-gray-700 uppercase tracking-wide">
+              GPT 账号备注 <span class="text-gray-400 font-normal normal-case ml-1">(选填)</span>
+</label>
+<input class="w-full h-10 px-4 border border-gray-200 rounded-lg bg-gray-50/50 text-sm text-gray-900 placeholder:text-gray-400 focus:border-mint-500 focus:ring-1 focus:ring-mint-500 outline-none transition-shadow" placeholder="用于区分不同账号" type="text"/>
+</div>
+<div class="h-px bg-gray-100 w-full my-4"></div>
+<!-- Field 3: 目录设置 -->
+<div class="space-y-3">
+<label class="block text-xs font-semibold text-gray-700 uppercase tracking-wide">目录设置</label>
+<div class="flex flex-col gap-3">
+<label class="flex items-center gap-3 cursor-pointer group">
+<input checked="" class="w-4 h-4 text-mint-500 border-gray-300 focus:ring-mint-500" name="dir_setting" type="radio"/>
+<span class="text-sm text-gray-700 group-hover:text-mint-600 transition-colors">创建新 Profile (自动生成于根目录)</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="w-4 h-4 text-mint-500 border-gray-300 focus:ring-mint-500" name="dir_setting" type="radio"/>
+<span class="text-sm text-gray-700 group-hover:text-mint-600 transition-colors">导入已有专用 Profile</span>
+</label>
+</div>
+</div>
+<!-- Path Display -->
+<div class="space-y-1.5 pt-2">
+<label class="block text-xs font-medium text-gray-500">当前生成路径预览</label>
+<div class="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-center gap-3">
+<i class="fa-regular fa-folder text-gray-400"></i>
+<code class="text-sm text-gray-600 flex-1 truncate">/root/path/current/<span class="text-mint-600 font-semibold">[Profile_Name]</span></code>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer -->
+<div class="p-6 border-t border-gray-100 bg-gray-50/50 flex flex-col gap-4">
+<!-- Buttons Row -->
+<div class="flex justify-end gap-3 w-full">
+<button class="h-10 px-5 bg-white border border-gray-200 rounded-full text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors" onclick="closeModal()">
+            取消
+          </button>
+<button class="h-10 px-6 bg-mint-50 text-mint-600 border border-mint-200 rounded-full text-sm font-semibold hover:bg-mint-100 transition-colors">
+            保存并打开
+          </button>
+<button class="h-10 px-6 bg-mint-500 text-white rounded-full text-sm font-semibold hover:bg-mint-600 transition-colors shadow-sm btn-hover-effect">
+            保存
+          </button>
+</div>
+<!-- Status Simulation -->
+<div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-100 self-start">
+<div class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+<span class="text-xs text-blue-700 font-medium">检测中... (正在验证路径读写权限)</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Image Detail Modal -->
+<div class="fixed inset-0 bg-gray-900/80 backdrop-blur-sm z-[60] modal-overlay items-center justify-center" id="image-detail-modal">
+<div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden modal-content border border-gray-100 flex flex-col md:flex-row h-[85vh]">
+<!-- Image Preview Area -->
+<div class="flex-1 bg-gray-50 relative flex items-center justify-center group">
+<button class="absolute top-4 left-4 w-10 h-10 bg-white/80 backdrop-blur rounded-full flex items-center justify-center text-gray-700 hover:bg-white transition-colors z-10 md:hidden" onclick="closeImageModal()">
+<i class="fa-solid fa-arrow-left"></i>
+</button>
+<img alt="Preview" class="max-w-full max-h-full object-contain p-4 drop-shadow-lg" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZdM_fpW6iM4mhLit5zOnVDNwCyFZodmmzMsyH1qSvmSKJHyBj5jdu9pOx1mBFSxEeODhS8scyeSvyVPzQGmDckGs4KxOYS_yNo-RlXWi5KWrrLADNpYGRLrobzEWhl_GXCxQHREupIp03zdrddVkf-U5ThNImzw61vgGwClyJhVEKOdObpRACtcQrFCDlumtXevmapbr2w_iR-kYhHzru0u4vKUxE1wnMH_hdLQSC_n03SGVFihLS8Q"/>
+<!-- Nav Controls -->
+<button class="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/80 backdrop-blur rounded-full flex items-center justify-center text-gray-700 hover:bg-white transition-colors opacity-0 group-hover:opacity-100 z-10 shadow-sm">
+<i class="fa-solid fa-chevron-left"></i>
+</button>
+<button class="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/80 backdrop-blur rounded-full flex items-center justify-center text-gray-700 hover:bg-white transition-colors opacity-0 group-hover:opacity-100 z-10 shadow-sm">
+<i class="fa-solid fa-chevron-right"></i>
+</button>
+</div>
+<!-- Details Sidebar -->
+<div class="w-full md:w-[400px] bg-white flex flex-col h-full border-l border-gray-100">
+<div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center hidden md:flex">
+<h3 class="text-sm font-bold text-gray-900">图片详情</h3>
+<button class="text-gray-400 hover:text-gray-700 transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100" onclick="closeImageModal()">
+<i class="fa-solid fa-xmark text-lg"></i>
+</button>
+</div>
+<div class="p-6 overflow-y-auto flex-1 space-y-6">
+<div>
+<p class="text-sm font-mono text-gray-500 mb-1 break-all">cyberpunk_city_landscape_v2_final.png</p>
+<div class="flex items-center gap-2 mt-2">
+<span class="px-2 py-0.5 bg-mint-100 text-mint-700 text-xs font-semibold rounded">SUCCESS</span>
+<span class="text-xs text-gray-400"><i class="fa-regular fa-clock mr-1"></i>2023-10-27 10:30:15</span>
+</div>
+</div>
+<div class="space-y-4">
+<div class="grid grid-cols-3 gap-2 border-b border-gray-50 pb-3">
+<div class="text-xs text-gray-500">所属 Profile</div>
+<div class="col-span-2 text-sm font-medium text-gray-900">Design_Master</div>
+</div>
+<div class="grid grid-cols-3 gap-2 border-b border-gray-50 pb-3">
+<div class="text-xs text-gray-500">项目/任务</div>
+<div class="col-span-2 text-sm font-medium text-gray-900">Cyberpunk World / 001</div>
+</div>
+<div class="grid grid-cols-3 gap-2 border-b border-gray-50 pb-3">
+<div class="text-xs text-gray-500">生成类型</div>
+<div class="col-span-2 text-sm font-medium text-gray-900">Text to Image</div>
+</div>
+<div class="grid grid-cols-3 gap-2 border-b border-gray-50 pb-3">
+<div class="text-xs text-gray-500">分辨率</div>
+<div class="col-span-2 text-sm font-medium text-gray-900 font-mono">1024 × 1024</div>
+</div>
+<div class="grid grid-cols-3 gap-2 border-b border-gray-50 pb-3">
+<div class="text-xs text-gray-500">格式</div>
+<div class="col-span-2 text-sm font-medium text-gray-900 uppercase">PNG</div>
+</div>
+<div class="grid grid-cols-3 gap-2">
+<div class="text-xs text-gray-500">文件大小</div>
+<div class="col-span-2 text-sm font-medium text-gray-900">2.4 MB</div>
+</div>
+</div>
+</div>
+<div class="p-4 border-t border-gray-100 bg-gray-50/50 flex flex-col gap-2">
+<button class="w-full h-10 bg-mint-500 text-white rounded-xl text-sm font-semibold hover:bg-mint-600 transition-colors shadow-sm flex items-center justify-center gap-2">
+<i class="fa-solid fa-folder-open"></i> 在文件夹中显示
+        </button>
+<div class="flex gap-2">
+<button class="flex-1 h-10 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
+<i class="fa-regular fa-copy"></i> 复制路径
+          </button>
+<button class="flex-1 h-10 bg-white border border-gray-200 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
+<i class="fa-solid fa-download"></i> 导出图片
+          </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+    function switchView(viewId) {
+      // Hide all views
+      document.querySelectorAll('.view-section').forEach(el => {
+        el.classList.remove('active');
+      });
+      // Show selected view
+      document.getElementById('view-' + viewId).classList.add('active');
+
+      // Update Nav highlighting
+      const navIds = ['overview', 'migration', 'security', 'images'];
+      navIds.forEach(id => {
+        const navEl = document.getElementById('nav-' + id);
+        if (navEl) {
+          if (id === viewId || (id === 'overview' && viewId === 'detail')) { // keep overview active if in detail
+            navEl.classList.add('active');
+            navEl.classList.remove('inactive');
+          } else {
+            navEl.classList.remove('active');
+            navEl.classList.add('inactive');
+          }
+        }
+      });
+      
+      // Scroll to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function openModal() {
+      document.getElementById('profile-modal').classList.add('active');
+      document.body.style.overflow = 'hidden'; // prevent background scrolling
+    }
+
+    function closeModal() {
+      document.getElementById('profile-modal').classList.remove('active');
+      document.body.style.overflow = '';
+    }
+    
+    // Close modal on click outside
+    document.getElementById('profile-modal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeModal();
+      }
+    });
+
+    function openImageModal() {
+      document.getElementById('image-detail-modal').classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeImageModal() {
+      document.getElementById('image-detail-modal').classList.remove('active');
+      document.body.style.overflow = '';
+    }
+    
+    document.getElementById('image-detail-modal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeImageModal();
+      }
+    });
+  </script>
+</body></html>

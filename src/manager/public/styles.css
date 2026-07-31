@@ -1,0 +1,118 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+[data-manager-shell] {
+  min-height: 100vh;
+}
+
+[data-manager-shell][data-runtime-pending] main { visibility: hidden; }
+
+/* Stitch image-management instances stay local to the manager shell. */
+[data-manager-shell] .image-profile-picker {
+  width: 256px;
+  flex: 0 0 256px;
+}
+
+[data-manager-shell] .image-status,
+[data-manager-shell] .image-kind,
+[data-manager-shell] .image-detail-status {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+[data-manager-shell] .image-status { padding: 4px 8px; color: #fff; }
+[data-manager-shell] .image-status-success { background: rgb(16 185 129 / 90%); }
+[data-manager-shell] .image-status-processing { background: rgb(59 130 246 / 90%); }
+[data-manager-shell] .image-status-error { background: rgb(239 68 68 / 90%); }
+[data-manager-shell] .image-kind { padding: 2px 6px; color: #fff; background: rgb(0 0 0 / 60%); font-weight: 500; letter-spacing: 0; }
+[data-manager-shell] .image-detail-status { padding: 2px 8px; color: #047857; background: #d1fae5; letter-spacing: 0; }
+
+[data-manager-shell] .image-spinner {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 8px;
+  border: 3px solid #bbf7d0;
+  border-top-color: #10b981;
+  border-radius: 50%;
+  animation: image-spin 1s linear infinite;
+}
+
+@keyframes image-spin { to { transform: rotate(360deg); } }
+
+[data-manager-shell] .image-state-reference { margin-top: 32px; }
+[data-manager-shell] .image-empty-state {
+  min-height: 156px;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 5px;
+  color: #6b7280;
+  background: rgb(249 250 251 / 70%);
+  border: 1px dashed #d1d5db;
+  border-radius: 16px;
+}
+[data-manager-shell] .image-empty-state i { color: #d1d5db; font-size: 24px; margin-bottom: 4px; }
+[data-manager-shell] .image-empty-state strong { color: #111827; font-size: 16px; }
+[data-manager-shell] .image-empty-state span { font-size: 13px; }
+[data-manager-shell] .image-empty-state-error { color: #b91c1c; background: rgb(254 242 242 / 70%); border-color: #fecaca; }
+[data-manager-shell] .image-empty-state-error i { color: #f87171; }
+
+[data-manager-shell] .image-nav {
+  position: absolute;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #374151;
+  background: rgb(255 255 255 / 80%);
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+}
+[data-manager-shell] .image-nav-left { left: 16px; }
+[data-manager-shell] .image-nav-right { right: 16px; }
+[data-manager-shell] .image-detail-fields > div {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 13px;
+}
+[data-manager-shell] .image-detail-fields > div:last-child { border-bottom: 0; }
+[data-manager-shell] .image-detail-fields span { color: #6b7280; }
+[data-manager-shell] .image-detail-fields strong { color: #111827; font-weight: 600; }
+
+@media (max-width: 767px) {
+  [data-manager-shell] { padding-bottom: 5.5rem !important; }
+  [data-manager-shell] nav .flex.justify-between.items-center.h-16 { gap: 12px; }
+  [data-manager-shell] nav .flex.items-center.space-x-4 { gap: 8px; }
+  [data-manager-shell] nav .flex.items-center.space-x-4 > button.bg-mint-500 {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+    flex: 0 0 40px;
+    font-size: 0;
+  }
+  [data-manager-shell] nav .flex.items-center.space-x-4 > button.bg-mint-500 i { margin-right: 0; font-size: 14px; }
+  [data-manager-shell] nav .border-l.border-gray-300 > button:last-child { display: none; }
+  [data-manager-shell] .image-profile-picker { width: 100%; flex-basis: auto; }
+  [data-manager-shell] .image-grid { grid-template-columns: 1fr; }
+  [data-manager-shell] .image-search { min-width: 100%; }
+  [data-manager-shell] .image-manager .flex.flex-wrap > button { flex: 1 1 auto; }
+  [data-manager-shell] #image-detail-modal .modal-content { height: 100vh; max-height: 100vh; border-radius: 0; overflow-y: auto; }
+  [data-manager-shell] #image-detail-modal .modal-content > div:first-child { min-height: 48vh; }
+}

@@ -91,3 +91,56 @@
 - `recoverable` 必须由明确分类给出，不能一律 true。
 - 网页生成成功但下载失败必须使用下载类错误，不能发 `succeeded`。
 - 内容政策拒绝记录为明确失败，不自动改写规避。
+
+## Profile 管理服务 API（规划）
+
+本节只定义本轮规划契约，当前仓库尚未实现管理服务；所有接口必须绑定本机 `127.0.0.1`，不得提供云端或局域网入口。
+
+| 方法 | 路径 | 责任 | 主要错误 |
+|---|---|---|---|
+| GET | `/profiles` | 读取注册表并扫描默认根目录后返回列表 | `REGISTRY_INVALID`、`SCAN_FAILED` |
+| POST | `/profiles` | 创建新 Profile 目录、归属标记和注册记录 | `PATH_INVALID`、`PROFILE_EXISTS` |
+| POST | `/profiles/import` | 用户显式导入已有专用 Profile | `NOT_OWNED`、`DAILY_PROFILE_REJECTED` |
+| PATCH | `/profiles/:id` | 修改名称、备注和说明 | `PROFILE_NOT_FOUND` |
+| DELETE | `/profiles/:id` | 二次确认后删除目录和注册记录 | `ACTIVE_PROFILE`、`PROFILE_BUSY`、`DELETE_CONFIRMATION_REQUIRED` |
+| POST | `/profiles/:id/activate` | 检查登录/会员/占用后设为唯一启用项 | `LOGIN_REQUIRED`、`MEMBERSHIP_NOT_ELIGIBLE`、`PROFILE_BUSY` |
+| POST | `/profiles/:id/check` | 检查归属、登录、会员和可写状态 | `CHECK_FAILED` |
+| POST | `/profiles/:id/open` | 启动或复用唯一专用 Chrome | `BROWSER_BUSY`、`CHROME_UNAVAILABLE` |
+| POST | `/profiles/:id/close` | 只关闭项目记录的专用 Chrome | `NOT_PROJECT_BROWSER`、`BROWSER_CLOSE_FAILED` |
+| GET | `/directories` | 返回默认根目录、历史根目录和扫描摘要 | `PATH_INVALID` |
+| POST | `/directories/plan` | 生成迁移/保留/取消预检计划 | `DIRECTORY_CONFLICT`、`PROFILE_BUSY` |
+| POST | `/directories/migrate` | 执行已确认的复制、校验、切换和源清理 | `MIGRATION_FAILED`、`MIGRATION_CONFLICT` |
+| POST | `/directories/retain` | 只更新默认创建根目录并登记历史根目录 | `PATH_INVALID` |
+| POST | `/profiles/:id/backups` | 浏览器关闭后创建包含 Chrome 登录数据的未加密备份 | `PROFILE_BUSY`、`BACKUP_FAILED` |
+| POST | `/backups/:id/restore` | 从本地备份恢复为新 Profile | `BACKUP_INVALID`、`RESTORE_FAILED` |
+
+### API 边界
+
+- DELETE 必须收到页面二次确认产生的短期确认值；自动命令不能构造该值。
+- API 响应只返回路径、状态、时间和用户备注，不返回邮箱、Cookie、Token、密码或页面原文。
+- 迁移响应必须包含源/目标、Profile 数量、冲突和是否需要关闭浏览器；冲突非空时不得执行。
+- 会员检查必须返回 `plus/pro/go/other/technical_failure`，不能把 `unknown` 当作可启用状态。
+- 所有写操作使用临时文件和原子替换；失败时保留旧注册表。
+# 图片管理本地 API
+
+> 本节契约已在 `src/manager/server.ts` 实现。服务只监听 `127.0.0.1`，响应脱敏并保留 Profile 归属。
+
+| 方法 | 路径 | 目的 | 状态 |
+|---|---|---|---|
+| GET | `/profiles` | 返回可选择 Profile 的非敏感摘要 | 已实现 |
+| GET | `/profiles/:profileId/images` | 返回单 Profile 图片列表，支持 filter/sort/group/page | 已实现 |
+| GET | `/profiles/:profileId/images/:imageId` | 返回图片或任务状态详情与可用操作 | 已实现 |
+| GET | `/profiles/:profileId/images/:imageId/content` | 返回原图/缩略图或导出下载 | 已实现 |
+| POST | `/profiles/:profileId/images/:imageId/open-directory` | 用系统文件管理器打开受控所在目录 | 已实现 |
+| POST | `/profiles/:profileId/images/scan` | 首次或手动重新扫描 | 已实现 |
+| GET | `/profiles/:profileId/images/index-status` | 返回扫描时间和错误摘要 | 已实现 |
+
+## 请求约束
+
+- `profileId` 必须来自注册表；服务端重新解析根目录，不信任客户端路径。
+- 筛选支持时间、项目/任务、生成类型、格式、尺寸/方向、状态和关键词组合。
+- 默认排序为 `generatedAt_desc`，默认单 Profile，不允许全局跨 Profile 查询。
+
+## 错误契约
+
+已实现错误码包括 `PROFILE_NOT_FOUND`、`PROFILE_SCOPE_VIOLATION`、`DIRECTORY_MISSING`、`PERMISSION_DENIED`、`SCAN_FAILED`、`INDEX_READ_FAILED`、`INDEX_INVALID`、`IMAGE_NOT_FOUND`、`IMAGE_MISSING`、`IMAGE_CORRUPT`、`IMAGE_UNAVAILABLE` 和 `INVALID_INPUT`。非数字、越界分页、反向尺寸范围和无效时间均返回 400；错误响应不包含认证数据、完整敏感日志或未脱敏 URL。

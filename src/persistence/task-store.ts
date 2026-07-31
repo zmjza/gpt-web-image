@@ -43,7 +43,7 @@ export async function readTaskRecord(filePath: string): Promise<TaskRecord> {
     throw new TaskStoreError(`task.json 读取失败：${error instanceof Error ? error.message : String(error)}`);
   }
   if (!isTaskRecord(parsed)) throw new TaskStoreError("task.json 结构无效或 schemaVersion 未知", "PERSISTENCE_INCOMPATIBLE");
-  return parsed;
+  return { ...parsed, profileBinding: parsed.profileBinding ?? null };
 }
 
 export function taskFilePath(directory: string): string { return join(directory, "task.json"); }

@@ -12,13 +12,16 @@ import { createTaskId } from "./tasks/id.js";
 import { createTaskRecord, type TaskRecord, type TaskState } from "./tasks/model.js";
 import { createOutputLayout } from "./images/output-layout.js";
 import { readTaskRecord, writeTaskRecord } from "./persistence/task-store.js";
-import { launchProfile, PROFILE_RETENTION_POLICY, profileMarkerPath } from "./browser/profile.js";
+import { launchProfile, PROFILE_RETENTION_POLICY, profileMarkerPath, type BrowserSession } from "./browser/profile.js";
 import { waitForReadyComposer } from "./browser/login.js";
 import { runWebImageFlow } from "./chatgpt/web-flow.js";
 import { EventWriter } from "./events/writer.js";
 import { ImageReadyEmitter } from "./events/image-ready.js";
 import { auditRecovery } from "./persistence/recover.js";
 import { readRememberedCount, writeRememberedCount } from "./tasks/count-memory.js";
+import { openProfileRuntime } from "./profiles/runtime.js";
+import { bindActiveProfile } from "./profiles/binding.js";
+import { BrowserLease } from "./browser/browser-lease.js";
 
 export interface CliIo { stdout: (line: string) => void; stderr: (line: string) => void; }
 const DEFAULT_IO: CliIo = { stdout: (line) => process.stdout.write(`${line}\n`), stderr: (line) => process.stderr.write(`${line}\n`) };
@@ -46,6 +49,10 @@ function parsePrompt(argv: string[]): string {
 
 async function runImageCommand(command: "generate" | "edit" | "refine", argv: string[], io: CliIo): Promise<number> {
   const config = await loadConfig({ configPath: option(argv, "--config") });
+  const runtime = await openProfileRuntime(config.profileDir);
+  let profileBinding;
+  try { profileBinding = await bindActiveProfile(runtime.store); }
+  catch (error) { io.stderr(error instanceof Error ? error.message : String(error)); return 30; }
   const chrome = inspectChrome({ configuredPath: config.chromeExecutablePath ?? undefined });
   if (!chrome.available || !chrome.path) { io.stderr("未找到 Google Chrome"); return 20; }
   const sourceTaskId = option(argv, "--task-id") ?? null;
@@ -58,12 +65,12 @@ async function runImageCommand(command: "generate" | "edit" | "refine", argv: st
     if (!sourceTask.chatUrl) { io.stderr("源任务缺少可恢复会话 URL"); return 41; }
   }
   const prompt = parsePrompt(argv);
-  const countMemoryPath = join(resolve(config.profileDir, ".."), "preferences.json");
+  const countMemoryPath = join(runtime.dataRoot, "preferences.json");
   const explicitCount = option(argv, "--count");
   const count = Number(explicitCount ?? await readRememberedCount(countMemoryPath, config.defaultImageCount));
   let task: TaskRecord;
   try {
-    task = createTaskRecord({ kind: command, prompt, count, aspectRatio: option(argv, "--ratio") ?? null, referencePaths: options(argv, "--reference"), sourceTaskId, sourceResultIds: options(argv, "--result-id"), modifyAll: false }, createTaskId());
+    task = createTaskRecord({ kind: command, prompt, count, aspectRatio: option(argv, "--ratio") ?? null, referencePaths: options(argv, "--reference"), sourceTaskId, sourceResultIds: options(argv, "--result-id"), modifyAll: false }, createTaskId(), new Date(), profileBinding);
   } catch (error) { io.stderr(error instanceof Error ? error.message : String(error)); return 20; }
   if (explicitCount !== undefined) await writeRememberedCount(countMemoryPath, count);
   const outputRoot = option(argv, "--output-dir") ?? config.fallbackOutputDir;
@@ -74,7 +81,15 @@ async function runImageCommand(command: "generate" | "edit" | "refine", argv: st
   const images = new ImageReadyEmitter(writer);
   writer.write({ taskId: task.taskId, type: "state", state: "initializing", message: "任务已创建", completed: 0, target: count, recoverable: true });
   const startUrl = option(argv, "--url") ?? sourceTask?.chatUrl ?? "https://chatgpt.com/";
-  let session = await launchProfile({ profileDir: config.profileDir, executablePath: chrome.path, headed: flag(argv, "--headed"), url: startUrl });
+  const browserLease = new BrowserLease(runtime.dataRoot, { profileId: profileBinding.profileId, profileDir: profileBinding.profileDir, ownerType: "task" });
+  await browserLease.acquire();
+  let session: BrowserSession;
+  try {
+    session = await launchProfile({ profileDir: profileBinding.profileDir, executablePath: chrome.path, headed: flag(argv, "--headed"), url: startUrl });
+  } catch (error) {
+    await browserLease.release();
+    throw error;
+  }
   try {
     task.state = "submitting"; task.startedAt = new Date().toISOString(); task.updatedAt = task.startedAt;
     await writeTaskRecord(taskPath, task);
@@ -104,7 +119,7 @@ async function runImageCommand(command: "generate" | "edit" | "refine", argv: st
         await writeTaskRecord(taskPath, task);
         writer.write({ taskId: task.taskId, type: "warning", state: task.state, message: "需要在专用 Chrome 中完成人工登录或验证", completed: task.results.length, target: count, recoverable: true });
         await session.close();
-        session = await launchProfile({ profileDir: config.profileDir, executablePath: chrome.path, headed: true, url: startUrl });
+        session = await launchProfile({ profileDir: profileBinding.profileDir, executablePath: chrome.path, headed: true, url: startUrl });
         await waitForReadyComposer(session.page, config.hardTimeoutMs).catch(() => { throw new Error(message); });
         task.state = "ready"; await writeTaskRecord(taskPath, task);
         result = await executeRound();
@@ -132,7 +147,7 @@ async function runImageCommand(command: "generate" | "edit" | "refine", argv: st
     if (state === "result_uncertain") return 41;
     if (state === "timed_out") return 42;
     return 70;
-  } finally { await session.close(); }
+  } finally { await session.close(); await browserLease.release(); }
 }
 
 export async function runCli(argv: string[] = process.argv.slice(2), io: CliIo = DEFAULT_IO): Promise<number> {

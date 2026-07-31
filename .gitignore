@@ -4,6 +4,7 @@ dist/
 .env.*
 .codex/
 .playwright/
+.playwright-cli/
 gpt-web-images/
 /diagnostics/
 profiles/

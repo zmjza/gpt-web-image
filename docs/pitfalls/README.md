@@ -36,5 +36,6 @@
 | [`browser-session.md`](browser-session.md) | 专用 Chrome Profile、可视登录、后台运行和人工接管 | 项目文档、Skill 约定、当前对话 |
 | [`image-delivery.md`](image-delivery.md) | 回复绑定、原图校验、逐张 `image_ready` 和夹具/真实环境区分 | 项目 API、测试用例、真机清单、当前对话 |
 | [`cross-platform-validation.md`](cross-platform-validation.md) | Windows CI、macOS 真机、Windows 用户验收和证据门禁 | 开发追踪、验证文档、真机清单、当前对话 |
+| [`manager-ui-shell.md`](manager-ui-shell.md) | Stitch UI 壳响应式、本地资产、Profile 图片隔离、扫描路径和并发构建 | 本轮实现、自动化测试、页面预览和真实构建失败 |
 
 本次历史回填未发现可达 Git 提交记录；条目来自现有项目文件和当前对话中已经明确的实现/验证边界，详见最终任务报告。

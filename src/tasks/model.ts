@@ -1,5 +1,6 @@
 import { parseRequest, type NormalizedRequest, type RawRequest } from "../input/parse-request.js";
 import { assertSafeTaskId } from "./id.js";
+import type { TaskProfileBinding } from "../profiles/binding.js";
 
 export const TASK_STATES = [
   "initializing", "needs_login", "ready", "submitting", "submitted", "queued", "generating", "partial", "stabilizing", "downloading", "validating", "succeeded", "partial_success", "failed", "timed_out", "cancelled", "recovering", "needs_human_verification", "structure_changed", "result_uncertain"
@@ -42,13 +43,14 @@ export interface TaskRecord {
   failures: unknown[];
   lastEventSeq: number;
   cancelRequestedAt: string | null;
+  profileBinding: TaskProfileBinding | null;
 }
 
 export function isTaskState(value: string): value is TaskState {
   return (TASK_STATES as readonly string[]).includes(value);
 }
 
-export function createTaskRecord(input: RawRequest | NormalizedRequest, taskId: string, now = new Date()): TaskRecord {
+export function createTaskRecord(input: RawRequest | NormalizedRequest, taskId: string, now = new Date(), profileBinding: TaskProfileBinding | null = null): TaskRecord {
   assertSafeTaskId(taskId);
   const request = parseRequest(input);
   const timestamp = now.toISOString();
@@ -70,6 +72,7 @@ export function createTaskRecord(input: RawRequest | NormalizedRequest, taskId: 
     results: [],
     failures: [],
     lastEventSeq: 0,
-    cancelRequestedAt: null
+    cancelRequestedAt: null,
+    profileBinding
   };
 }

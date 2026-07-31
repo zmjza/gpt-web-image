@@ -9,6 +9,7 @@ import { runWebImageFlow } from "../../src/chatgpt/web-flow.js";
 import { createOutputLayout } from "../../src/images/output-layout.js";
 import { startFixtureServer } from "../fixtures/chatgpt-page/server.js";
 import { runCli } from "../../src/cli.js";
+import { openProfileRuntime } from "../../src/profiles/runtime.js";
 import { launchProfile } from "../../src/browser/profile.js";
 
 const chrome = inspectChrome();
@@ -130,7 +131,12 @@ test("T35/T37 CLI streams validated local images before terminal completion", { 
   const fixture = await startFixtureServer();
   const root = await mkdtemp(join(tmpdir(), "gwi-cli-flow-"));
   const configPath = join(root, "config.json");
-  await writeFile(configPath, JSON.stringify({ chromeExecutablePath: chrome.path, profileDir: join(root, "profile"), fallbackOutputDir: join(root, "output"), stabilityWindowMs: 20, hardTimeoutMs: 5000 }));
+  const profileDir = join(root, "profile");
+  await writeFile(configPath, JSON.stringify({ chromeExecutablePath: chrome.path, profileDir, fallbackOutputDir: join(root, "output"), stabilityWindowMs: 20, hardTimeoutMs: 5000 }));
+  const runtime = await openProfileRuntime(profileDir);
+  const profile = (await runtime.manager.list()).profiles.find((entry) => entry.profileDir === profileDir);
+  assert.ok(profile);
+  await runtime.manager.activate(profile.profileId, async () => ({ login: "logged_in", membership: "plus", evidenceKinds: ["fixture"], checkedAt: new Date().toISOString(), eligible: true }));
   const stdout: string[] = []; const stderr: string[] = [];
   try {
     const code = await runCli(["generate", "--prompt", "生成两张图", "--count", "2", "--url", `${fixture.url}/?scenario=success&count=2`, "--config", configPath], { stdout: (line) => stdout.push(line), stderr: (line) => stderr.push(line) });
