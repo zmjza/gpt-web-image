@@ -79,3 +79,19 @@
 **相关文件或命令**：`tests/browser/session.test.ts`、`src/browser/profile.ts`、GitHub Actions run `30542014545` / job `90868799145`。
 
 **适用范围**：macOS/Windows Profile、输出目录、CLI 参数和所有路径字符串断言。
+
+## 不要让未锚定的 profiles 忽略规则排除源代码和测试
+
+**现象**：本机依赖目录中存在 `src/profiles/` 和 `tests/profiles/`，所以 typecheck 和测试通过；提交后 Windows checkout 缺少 Profile 实现和测试，先后导致 typecheck 模块缺失、T57/T77 文件映射失败。
+
+**根因**：`.gitignore` 使用未锚定的 `profiles/`，会匹配任意层级同名目录，而项目的运行数据目录才应该位于仓库根目录。
+
+**正确做法**：运行数据规则写为 `/profiles/`；修改后检查 `git check-ignore --no-index`，并确认 `git ls-tree` 和 `git add --dry-run --all` 包含 `src/profiles/`、`tests/profiles/`。
+
+**验证方式**：本机 `npm run typecheck`、`npm test` 通过；最新 Windows CI 必须在包含 Profile 源码和测试的 commit 上重新运行并检查完整结果。
+
+**禁止事项**：不得因本机编译通过就认为 checkout 完整；不得使用 `git add -f` 掩盖忽略规则错误；不得把源代码或测试目录加入运行数据忽略范围。
+
+**相关文件或命令**：`.gitignore`、`src/profiles/`、`tests/profiles/`、`git check-ignore --no-index`、`git ls-tree`、`npm test`。
+
+**适用范围**：Profile 管理、跨平台 CI、首次提交和所有与运行数据同名的源码/测试目录。
