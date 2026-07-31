@@ -8,7 +8,7 @@ description: >-
 
 # GPT 网页生图
 
-此 Skill 通过项目 CLI 控制独立 Google Chrome Profile，只使用 ChatGPT 公开网页交互。首次运行 `setup` 时显示浏览器供用户自行登录；后续任务默认在后台运行。不得读取密码、Cookie、令牌，不得绕过验证码、账号限制或内容政策。
+此 Skill 通过项目 CLI 控制独立 Google Chrome Profile，只使用 ChatGPT 公开网页交互。首次运行 `setup` 时显示浏览器供用户自行登录；后续任务默认使用同一专用 Profile 启动正式 Chrome 并自动最小化到后台，不抢占当前前台窗口。只有登录失效、验证码或安全验证时才重新显示窗口供用户接管。不得读取密码、Cookie、令牌，不得绕过验证码、账号限制或内容政策。
 
 ## 触发边界
 
@@ -19,6 +19,8 @@ description: >-
 ## 执行约定
 
 1. 从本 Skill 目录的 `.gpt-web-image-install.json` 读取 `projectRoot`，使用 `node {projectRoot}/dist/src/cli.js` 调用 `setup/doctor/generate/edit/refine/resume/cancel/cleanup`；开发仓库内可直接运行 `node dist/src/cli.js`。默认专用 Profile 固定保存在 macOS `~/Library/Application Support/gpt-web-image/chrome-profile` 或 Windows `%LOCALAPPDATA%\\gpt-web-image\\chrome-profile`，位置也会在 `doctor/setup` 输出中显示；除非用户明确提出并确认，任何命令不得删除或重建该 Profile。
+   - `setup` 和人工接管使用可视窗口；登录完成或验证结束后会关闭该专用窗口。
+   - 普通生图任务使用正式 Chrome 的 `--start-minimized` 后台窗口，不使用 `--headless`、全局 AppleScript 隐藏或控制用户个人 Chrome。台前调度模式下该窗口可能仍出现在 Chrome/台前调度的应用列表中，但不会覆盖当前操作。
 2. 请求有多张来源图且未说明目标时，必须先要求用户指定编号或“全部”，不能自动选第一张。
 3. CLI stdout 是 JSONL。每收到一条 `image_ready`，立刻用 `image.previewPath || image.originalPath` 的绝对路径输出 Markdown 图片：`![生成图片 X/N](/绝对路径)`，不得等到整批结束，也不能只回显路径文本。
 4. 同一 `resultId` 或 `sha256` 只显示一次；终态核对 `completed/target`。部分失败不撤回已经显示的合格图片。

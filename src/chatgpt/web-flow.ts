@@ -31,6 +31,7 @@ export interface WebImageFlowOptions {
   onResponseAnchor?: (anchor: ResponseAnchor, chatUrl: string) => void | Promise<void>;
   knownHashes?: ReadonlySet<string>;
   isCancelled?: () => boolean | Promise<boolean>;
+  requireExistingConversation?: boolean;
 }
 export interface WebImageFlowResult { state: "succeeded" | "partial_success"; results: ImageResult[]; chatUrl: string; }
 
@@ -51,12 +52,61 @@ async function userMessageTexts(page: Page): Promise<string[]> {
   }));
 }
 
+async function conversationLinks(page: Page): Promise<string[]> {
+  return page.locator('a[href*="/c/"]').evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).href).filter(Boolean)).catch(() => []);
+}
+
 async function composerText(composer: Locator): Promise<string> {
   return composer.evaluate((element) => {
     if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) return element.value;
     if (element instanceof HTMLElement) return element.innerText;
     return element.textContent ?? "";
   });
+}
+
+async function composerIsEmpty(page: Page): Promise<boolean> {
+  const composer = page.getByRole("textbox", { name: /message|prompt|消息|提问|聊天/i }).filter({ visible: true });
+  if (await composer.count() !== 1) return false;
+  try {
+    return await composer.evaluate((element) => {
+      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) return element.value === "";
+      return (element.textContent ?? "").trim() === "";
+    });
+  } catch {
+    // React may replace the composer while the new conversation route hydrates.
+    return false;
+  }
+}
+
+async function waitForSubmissionConfirmation(page: Page, prepared: PreparedSubmission, baselineConversationLinks: ReadonlySet<string>, timeoutMs: number): Promise<{ status: "confirmed" | "not_submitted" | "uncertain"; conversationUrl: string | null }> {
+  const deadline = Date.now() + Math.min(timeoutMs, 10_000);
+  let status: "confirmed" | "not_submitted" | "uncertain" = "uncertain";
+  while (Date.now() < deadline) {
+    const links = await conversationLinks(page);
+    const currentUrl = page.url();
+    const conversationUrl = links.find((link) => !baselineConversationLinks.has(link))
+      ?? (/\/c\/[a-z0-9-]+/i.test(currentUrl) && !baselineConversationLinks.has(currentUrl) ? currentUrl : null);
+    status = confirmSubmission(prepared, { userMessages: await userMessageTexts(page), composerEmpty: await composerIsEmpty(page), conversationCreated: conversationUrl !== null });
+    if (status === "confirmed") return { status, conversationUrl };
+    await page.waitForTimeout(100);
+  }
+  return { status, conversationUrl: null };
+}
+
+async function openSubmittedConversation(page: Page, conversationUrl: string | null): Promise<void> {
+  if (!conversationUrl || /\/c\/[a-z0-9-]+/i.test(page.url())) return;
+  await page.goto(conversationUrl, { waitUntil: "domcontentloaded", timeout: 10_000 }).catch(() => undefined);
+}
+
+async function waitForExistingConversation(page: Page, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + Math.min(timeoutMs, 15_000);
+  while (Date.now() < deadline) {
+    const assistants = await page.locator(modernTurnSelector("assistant")).count() || await page.locator(legacyTurnSelector("assistant")).count();
+    const users = await page.locator(modernTurnSelector("user")).count() || await page.locator(legacyTurnSelector("user")).count();
+    if (assistants > 0 && users > 0) return;
+    await page.waitForTimeout(100);
+  }
+  throw new Error("PAGE_STRUCTURE_CHANGED: conversation");
 }
 
 async function fillStableComposer(page: Page, prompt: string, timeoutMs: number, pollIntervalMs: number): Promise<Locator> {
@@ -104,6 +154,7 @@ async function downloadBuffer(page: Page, assistant: Locator, resultId: string, 
 export async function runWebImageFlow(options: WebImageFlowOptions): Promise<WebImageFlowResult> {
   const { page } = options;
   if (options.submit !== false) await waitForAutomatedComposer(page, Math.min(options.timeoutMs, 60_000), options.pollIntervalMs ?? 250);
+  if (options.requireExistingConversation) await waitForExistingConversation(page, options.timeoutMs);
   const assistantBaseline = await (await turnLocator(page, "assistant")).count();
   const userBaseline = await userMessageTexts(page);
   let initialPageState = "";
@@ -114,6 +165,7 @@ export async function runWebImageFlow(options: WebImageFlowOptions): Promise<Web
       await upload.first().setInputFiles(options.referencePaths as string[]);
     }
     const prepared = prepareSubmission(options.prompt, assistantBaseline + userBaseline.length, userBaseline);
+    const baselineConversationLinks = new Set(await conversationLinks(page));
     await options.onPreparedSubmission?.(prepared);
     const composer = await fillStableComposer(page, options.prompt, Math.min(options.timeoutMs, 15_000), options.pollIntervalMs ?? 250);
     const submit = page.getByRole("button", { name: /send|submit|发送/i });
@@ -125,16 +177,9 @@ export async function runWebImageFlow(options: WebImageFlowOptions): Promise<Web
       return response ? response.getAttribute("data-state") ?? "generating" : false;
     }, assistantBaseline, { timeout: Math.min(options.timeoutMs, 10000) }).then((handle) => handle.jsonValue() as Promise<string>).catch(() => undefined);
     await submit.click();
-    await page.waitForFunction((count) => {
-      const modern = document.querySelectorAll('[data-turn="user"]');
-      return (modern.length > 0 ? modern : document.querySelectorAll('[data-message-author-role="user"]')).length > count;
-    }, userBaseline.length, { timeout: Math.min(options.timeoutMs, 10000) });
-    const composerEmpty = await composer.evaluate((element) => {
-      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) return element.value === "";
-      return (element.textContent ?? "").trim() === "";
-    });
-    const status = confirmSubmission(prepared, { userMessages: await userMessageTexts(page), composerEmpty });
-    if (status !== "confirmed") throw new Error(`SUBMISSION_${status.toUpperCase()}`);
+    const confirmation = await waitForSubmissionConfirmation(page, prepared, baselineConversationLinks, options.timeoutMs);
+    if (confirmation.status !== "confirmed") throw new Error(`SUBMISSION_${confirmation.status.toUpperCase()}`);
+    await openSubmittedConversation(page, confirmation.conversationUrl);
     const [capturedState] = await Promise.all([initialStatePromise, options.onSubmissionConfirmed?.()]);
     initialPageState = capturedState ?? "";
   }

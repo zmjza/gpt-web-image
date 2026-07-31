@@ -101,6 +101,7 @@ async function runImageCommand(command: "generate" | "edit" | "refine", argv: st
       if (round > 0) { task.supplementRound = round; flowTarget = count - task.results.length; flowPrompt = supplementImagePrompt(flowTarget); await writeTaskRecord(taskPath, task); }
       const executeRound = () => runWebImageFlow({
           page: session.page, prompt: flowPrompt, targetCount: flowTarget, outputLayout: layout, referencePaths: round === 0 ? task.request.referencePaths : [],
+          requireExistingConversation: command === "refine",
           stabilityWindowMs: config.stabilityWindowMs, timeoutMs: config.hardTimeoutMs, knownHashes: new Set(task.results.map((entry) => (entry as { sha256?: string }).sha256).filter((value): value is string => typeof value === "string")),
           onPreparedSubmission: async (submission) => { task.submission = { attemptId: submission.attemptId, baselineMessageCount: submission.baselineMessageCount, baselineImageFingerprints: [], promptFingerprint: submission.promptFingerprint, clickedAt: null, confirmedAt: null, confirmationEvidence: [] }; task.state = "submitting"; await writeTaskRecord(taskPath, task); },
           onBeforeSubmitClick: async () => { task.submission.clickedAt = new Date().toISOString(); await writeTaskRecord(taskPath, task); },

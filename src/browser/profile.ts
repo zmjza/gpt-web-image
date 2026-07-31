@@ -88,8 +88,8 @@ async function connectToChrome(profileDir: string, executablePath: string, url: 
   child.once("error", (error) => { launchError = error; });
   // Windows runners can start several isolated Chrome processes concurrently;
   // allow the browser enough time to create its profile and bind CDP.
-  const startupTimeoutMs = Number(process.env.GWI_CHROME_START_TIMEOUT_MS ?? 30_000);
-  const deadline = Date.now() + (Number.isFinite(startupTimeoutMs) && startupTimeoutMs > 0 ? startupTimeoutMs : 30_000);
+  const startupTimeoutMs = Number(process.env.GWI_CHROME_START_TIMEOUT_MS ?? 60_000);
+  const deadline = Date.now() + (Number.isFinite(startupTimeoutMs) && startupTimeoutMs > 0 ? startupTimeoutMs : 60_000);
   while (Date.now() < deadline) {
     if (launchError) throw launchError;
     if (child.exitCode !== null) throw new Error(`专用 Chrome 提前退出：${child.exitCode}`);

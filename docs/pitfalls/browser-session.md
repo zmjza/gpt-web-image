@@ -32,6 +32,22 @@
 
 **适用范围**：macOS ARM64 和 Windows x64 的 Google/OpenAI 首次认证、Cloudflare 人工验证和后续后台复用。
 
+## 后台任务应最小化专用 Chrome，不要全局隐藏 Chrome
+
+**现象**：macOS 开启台前调度后，后台生图若使用可视 Chrome，窗口可能抢到前台；若直接执行隐藏 Chrome 的系统脚本，又可能把用户正在使用的个人窗口一起隐藏。
+
+**根因**：项目需要真实 Google Chrome 的账号会话和网页渲染，不能为了“无窗口”改用未经验证的 headless 或全局应用级隐藏操作；系统隐藏命令通常按应用而不是按本项目 Profile 区分窗口。
+
+**正确做法**：首次登录和人工验证保持可视；普通任务用同一专用 Profile 启动正式 Chrome 并传入 `--start-minimized`，任务结束关闭该专用进程。台前调度模式下该窗口可能仍在应用列表中，但不得覆盖当前操作，也不得影响个人 Chrome。
+
+**验证方式**：检查 `buildHeadedChromeArgs(..., true)` 包含 `--start-minimized` 且不包含 `--headless`、`--enable-automation`；确认 setup 可视完成后关闭，普通任务使用 `headed: false`，并检查专用 Profile 锁和 Chrome 子进程在结束后释放。macOS 台前调度下的真实视觉表现仍需在目标机器复测，不能用夹具代替。
+
+**禁止事项**：不得执行针对整个 Google Chrome 应用的 AppleScript 隐藏；不得结束用户个人 Chrome；不得把“最小化”宣称为已验证的完全不可见；不得因台前调度而删除或重建 Profile。
+
+**相关文件或命令**：`src/browser/profile.ts`、`tests/browser/session.test.ts`、`.agents/skills/gpt-web-image/SKILL.md`、`node dist/src/cli.js setup`、`node dist/src/cli.js generate`。
+
+**适用范围**：macOS 台前调度和 Windows 多窗口环境下的专用 Profile 后台任务。
+
 ## 普通 Chrome 的登录不会迁移到专用 Profile
 
 **现象**：用户记得已经在 Chrome 登录，但项目专用页面仍显示“登录/免费注册”；专用目录和 Chrome 文件仍存在，普通 Chrome 也可能同时打开多个个人资料。
