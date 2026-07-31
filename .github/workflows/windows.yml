@@ -33,7 +33,7 @@ jobs:
           npm test 2>&1 | Tee-Object -FilePath windows-test-output.log
           $testExitCode = $LASTEXITCODE
           if ($testExitCode -ne 0) {
-            Get-Content windows-test-output.log | Select-Object -Last 120 | ForEach-Object { Write-Output "::error::$($_)" }
+            Get-Content windows-test-output.log | Where-Object { $_ -match 'not ok|AssertionError|Error:|expected|actual|ERR_|failure|fail' } | Select-Object -First 120 | ForEach-Object { Write-Output "::error::$($_)" }
             exit $testExitCode
           }
       - name: Build
