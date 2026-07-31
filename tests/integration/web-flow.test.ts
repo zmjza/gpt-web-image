@@ -59,6 +59,19 @@ test("T37 controlled browser fixture proves queued -> progressive images -> comp
   } finally { await browser.close(); await fixture.close(); }
 });
 
+test("T40 keeps the current ChatGPT turn anchor and ignores hidden image clones", { skip: !chrome.available }, async () => {
+  const fixture = await startFixtureServer();
+  const browser = await chromium.launch({ executablePath: chrome.path as string, headless: true });
+  try {
+    const page = await browser.newPage({ acceptDownloads: true });
+    await page.goto(`${fixture.url}/?scenario=success&count=1&dom=modern`);
+    const layout = await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-modern-dom-")), new Date(), "fixture_modern_dom");
+    const result = await runWebImageFlow({ page, prompt: "生成一张图", targetCount: 1, outputLayout: layout, stabilityWindowMs: 20, pollIntervalMs: 20, timeoutMs: 2000 });
+    assert.equal(result.state, "succeeded");
+    assert.equal(result.results.length, 1);
+  } finally { await browser.close(); await fixture.close(); }
+});
+
 test("T37 controlled browser fixture classifies a rate limit failure", { skip: !chrome.available }, async () => {
   const fixture = await startFixtureServer();
   const browser = await chromium.launch({ executablePath: chrome.path as string, headless: true });
@@ -78,6 +91,19 @@ test("T21 waits for a delayed SPA composer instead of reporting a structure chan
     await page.goto(`${fixture.url}/?scenario=success&count=1&readyDelay=150`);
     const layout = await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-delayed-composer-")), new Date(), "fixture_delayed_composer");
     const result = await runWebImageFlow({ page, prompt: "等待输入区", targetCount: 1, outputLayout: layout, stabilityWindowMs: 10, pollIntervalMs: 10, timeoutMs: 2000 });
+    assert.equal(result.state, "succeeded");
+  } finally { await browser.close(); await fixture.close(); }
+});
+
+test("T21 retries a composer replaced during SPA hydration before submission", { skip: !chrome.available }, async () => {
+  const fixture = await startFixtureServer();
+  const browser = await chromium.launch({ executablePath: chrome.path as string, headless: true });
+  try {
+    const page = await browser.newPage({ acceptDownloads: true });
+    page.setDefaultTimeout(1000);
+    await page.goto(`${fixture.url}/?scenario=success&count=1&composerSwap=1`);
+    const layout = await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-composer-swap-")), new Date(), "fixture_composer_swap");
+    const result = await runWebImageFlow({ page, prompt: "等待输入框替换", targetCount: 1, outputLayout: layout, stabilityWindowMs: 10, pollIntervalMs: 20, timeoutMs: 3000 });
     assert.equal(result.state, "succeeded");
   } finally { await browser.close(); await fixture.close(); }
 });
@@ -127,6 +153,25 @@ test("T37 controlled browser fixture returns partial success and times out witho
   } finally { await browser.close(); await fixture.close(); }
 });
 
+test("T14 stops between image deliveries when cancellation is requested", { skip: !chrome.available }, async () => {
+  const fixture = await startFixtureServer();
+  const browser = await chromium.launch({ executablePath: chrome.path as string, headless: true });
+  try {
+    const page = await browser.newPage({ acceptDownloads: true });
+    await page.goto(`${fixture.url}/?scenario=success&count=2`);
+    let delivered = 0;
+    const layout = await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-cancel-between-images-")), new Date(), "fixture_cancel_between_images");
+    await assert.rejects(() => runWebImageFlow({
+      page, prompt: "取消中的两张图", targetCount: 2,
+      outputLayout: layout,
+      stabilityWindowMs: 10, pollIntervalMs: 10, timeoutMs: 2000,
+      onImage: () => { delivered += 1; },
+      isCancelled: () => delivered > 0
+    }), /TASK_CANCELLED/);
+    assert.equal(delivered, 1);
+  } finally { await browser.close(); await fixture.close(); }
+});
+
 test("T35/T37 CLI streams validated local images before terminal completion", { skip: !chrome.available }, async () => {
   const fixture = await startFixtureServer();
   const root = await mkdtemp(join(tmpdir(), "gwi-cli-flow-"));
@@ -140,7 +185,7 @@ test("T35/T37 CLI streams validated local images before terminal completion", { 
   const stdout: string[] = []; const stderr: string[] = [];
   try {
     const code = await runCli(["generate", "--prompt", "生成两张图", "--count", "2", "--url", `${fixture.url}/?scenario=success&count=2`, "--config", configPath], { stdout: (line) => stdout.push(line), stderr: (line) => stderr.push(line) });
-    assert.equal(code, 0, stderr.join("\n"));
+    assert.equal(code, 0, [...stderr, ...stdout].join("\n"));
     const events = stdout.map((line) => JSON.parse(line) as { type: string; image?: { originalPath: string } });
     const ready = events.filter((event) => event.type === "image_ready");
     assert.equal(ready.length, 2);

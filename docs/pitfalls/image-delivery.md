@@ -15,3 +15,67 @@
 **相关文件或命令**：`src/chatgpt/response-anchor.ts`、`src/chatgpt/web-flow.ts`、`src/images/discovery.ts`、`src/images/download.ts`、`src/images/validate.ts`、`src/events/image-ready.ts`、`src/events/writer.ts`、`liran_docs/07-API文档.md`、`liran_docs/09-真机实测.md`、`npm test`。
 
 **适用范围**：文字生图、参考图改图、连续修改、1–10 张批量任务、补图、部分成功和 Codex 实时回显。
+
+## ChatGPT 图片回复应锚定稳定的 turn 容器
+
+**现象**：图片请求已确认提交并进入生成，但监听 `[data-message-author-role="assistant"]` 超时；真实页面稍后能看到图片，任务却没有下载或发出 `image_ready`。另一次请求因读取整个用户 turn 的操作区文本而进入 `SUBMISSION_UNCERTAIN`。
+
+**根因**：ChatGPT 图片任务会从临时 `WEB:` 会话切换到正式会话。路由切换后，稳定的外层节点是 `[data-turn="assistant"]`，旧的内层作者属性可能被移除；用户 turn 外层还可能包含编辑操作文本。真实生成图没有 `data-result-id`，并同时存在一个可见主图和两个 `aria-hidden` 同源副本。
+
+**正确做法**：优先用 `[data-turn]` 绑定用户和助手 turn，旧属性只作兼容回退；用户提交指纹只读取 turn 内层真实用户消息；图片发现只接收非隐藏且具有非空替代文本的主图，无结果 ID 时生成本轮稳定标识，并继续用资源 URL、解码和 SHA-256 去重。
+
+**验证方式**：运行包含 `dom=modern` 的 T40 Chrome 夹具回归，确认路由切换后仍锚定同一回复且三个渲染节点只交付一张；真实任务 `task_ms8zt15x_jebj658t` 的 `image_ready` 序号 4 早于终态序号 5，原图为可解码的 1254×1254 PNG。
+
+**禁止事项**：不得把临时路由中的内层作者节点当作永久锚点；不得用整个 turn 的混合文本确认提交；不得把隐藏副本重复计数；`SUBMISSION_UNCERTAIN` 时不得自动重提。
+
+**相关文件或命令**：`src/chatgpt/web-flow.ts`、`src/images/discovery.ts`、`tests/fixtures/chatgpt-page/index.html`、`tests/integration/web-flow.test.ts`、`npm test`。
+
+**适用范围**：真实 ChatGPT 图片任务的提交确认、路由切换、回复绑定、图片发现、下载和逐张回显。
+
+## 多图请求必须禁止附件式伪交付
+
+**现象**：请求 10 张图片时，网页可能回复 PNG 文件清单、附件卡片或打包下载，而不是在回复正文中直接展示图片；监控若只看可见 `<img>`，会误算或漏算结果。
+
+**根因**：原始提示词没有明确要求使用 ChatGPT 内置图像生成能力，也没有禁止 Python/代码解释器、Canvas、附件、ZIP、文件清单和下载链接，网页因此选择了文件生成工作流。
+
+**正确做法**：CLI 自动追加硬约束：使用内置图像生成、每张独立、正文内逐张可见展示、禁止程序生成和附件式交付。只有真实图片资源经过解码、尺寸和哈希校验后才发 `image_ready`；附件清单不能作为成功证据。
+
+**验证方式**：自动化断言提示词包含这些约束；macOS 真实任务 `task_ms906816_fyuvnmqq`（2 张）和 `task_ms90soxs_c4lbh48d`（10 张）均逐张 `image_ready` 且终态成功。首次附件型任务 `task_ms907uhh_fvbg4etq` 只保留已成功的 3 张并安全取消，不计入通过。
+
+**禁止事项**：不得把附件名称、ZIP、下载清单、截图或网页说明当作图片交付；不得因为网页声称“已生成”就跳过原图解码和事件顺序校验；多图少产时只能按受控补图策略继续。
+
+**相关文件或命令**：`src/chatgpt/conversation.ts`、`src/cli.ts`、`src/chatgpt/web-flow.ts`、`src/chatgpt/submit.ts`、`liran_docs/09-真机实测.md`。
+
+**适用范围**：1–10 张文字生图、参考图改图和补图任务的提示词交付约束与结果验收。
+
+## 改图上传控件可能有多个响应式实例
+
+**现象**：真实改图页面存在通用文件 input 和多个 `accept="image/*"` input，按“必须恰好一个 input”判断会在上传前报结构异常。
+
+**根因**：ChatGPT 为桌面/移动布局保留多个图片上传控件，其中部分是 1px 或不可见实例；控件数量不是唯一性条件。
+
+**正确做法**：优先选择带 `accept="image/*"` 的图片 input，并使用第一个稳定实例设置参考文件；上传后仍需等待用户消息确认、原图校验和新结果独立保存。
+
+**验证方式**：真实任务 `task_ms917xsb_4ry0xdyi` 改图成功，源文件哈希未变，结果文件为独立 PNG；自动化上传回归继续覆盖文件边界。
+
+**禁止事项**：不得把通用 input、响应式重复 input 的数量当作结构冲突；不得覆盖源图片；上传失败不得提交网页任务。
+
+**相关文件或命令**：`src/chatgpt/web-flow.ts`、`liran_docs/09-真机实测.md`。
+
+**适用范围**：参考图改图和需要本地附件的 ChatGPT 网页任务。
+
+## 取消必须合并磁盘状态并检查候选边界
+
+**现象**：用户取消多图任务后，正在运行的进程仍处理同一批候选图，旧内存任务对象还可能把 `cancelRequestedAt` 覆盖为空并最终误报 `succeeded`。
+
+**根因**：取消命令与生成进程是两个执行者；只在轮询循环开头读取取消标记不够，单轮候选循环和结果写回仍可能使用旧快照。
+
+**正确做法**：每张候选图前检查取消；写入结果和最终终态前从磁盘合并最新 `cancelRequestedAt`；只要取消标记存在，终态优先为 `cancelled`，已校验图片保留，不再补图或重复提交。
+
+**验证方式**：夹具取消回归在第一张交付后第二张前停止；真实任务 `task_ms91v98r_q8ybbrl2` 在 9/10 时取消，`task.json` 保留 `cancelRequestedAt`、终态 `cancelled`，未交付第 10 张。
+
+**禁止事项**：不得用旧内存任务对象覆盖取消字段；不得在取消后把任务改回成功；不得删除取消前已校验的结果。
+
+**相关文件或命令**：`src/cli.ts`、`src/chatgpt/web-flow.ts`、`tests/integration/web-flow.test.ts`、`node dist/src/cli.js cancel --task-id ...`。
+
+**适用范围**：1–10 张生图、补图、改图和恢复任务的取消处理。

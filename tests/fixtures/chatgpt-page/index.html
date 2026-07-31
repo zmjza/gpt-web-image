@@ -17,9 +17,13 @@
     const count = Number(params.get('count') || '2');
     const readyDelay = Number(params.get('readyDelay') || '0');
     const loginFlash = Number(params.get('loginFlash') || '0');
+    const modernDom = params.get('dom') === 'modern';
     const form = document.querySelector('#composer-form');
-    const input = form.querySelector('#prompt-textarea');
+    let input = form.querySelector('#prompt-textarea');
     const conversation = document.querySelector('#conversation');
+    if (modernDom) {
+      conversation.innerHTML = '<section data-turn="assistant"><div data-message-author-role="assistant"><p>历史回复</p></div></section>';
+    }
     if (readyDelay > 0) {
       form.hidden = true;
       setTimeout(() => { form.hidden = false; }, readyDelay);
@@ -31,16 +35,34 @@
       document.body.appendChild(login);
       setTimeout(() => { login.remove(); form.hidden = false; }, loginFlash);
     }
+    if (params.get('composerSwap') === '1') {
+      input.addEventListener('focus', () => {
+        const previous = input;
+        const replacement = previous.cloneNode(true);
+        previous.hidden = true;
+        setTimeout(() => {
+          previous.replaceWith(replacement);
+          input = replacement;
+        }, 100);
+      }, { once: true });
+    }
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       const prompt = input.textContent;
       input.textContent = '';
-      conversation.insertAdjacentHTML('beforeend', `<article data-message-author-role="user"><p>${prompt.replace(/[<>&]/g, '')}</p></article>`);
-      const assistant = document.createElement('article');
-      assistant.dataset.messageAuthorRole = 'assistant';
+      const safePrompt = prompt.replace(/[<>&]/g, '');
+      conversation.insertAdjacentHTML('beforeend', modernDom
+        ? `<section data-turn="user"><div data-message-author-role="user"><p>${safePrompt}</p></div><button>编辑消息</button></section>`
+        : `<article data-message-author-role="user"><p>${safePrompt}</p></article>`);
+      const assistant = document.createElement(modernDom ? 'section' : 'article');
+      if (modernDom) assistant.dataset.turn = 'assistant';
+      else assistant.dataset.messageAuthorRole = 'assistant';
       assistant.dataset.state = 'queued';
-      assistant.innerHTML = '<p data-status>排队中</p>';
+      assistant.innerHTML = modernDom
+        ? '<div data-message-author-role="assistant"><p data-status>排队中</p></div>'
+        : '<p data-status>排队中</p>';
       conversation.appendChild(assistant);
+      if (modernDom) setTimeout(() => assistant.querySelector('[data-message-author-role="assistant"]')?.removeAttribute('data-message-author-role'), 10);
       if (scenario === 'timeout') return;
       if (scenario === 'failure') {
         setTimeout(() => { assistant.dataset.state = 'failed'; assistant.innerHTML = '<p role="alert">429 rate limited</p>'; }, 50);
@@ -50,7 +72,9 @@
       for (let i = 1; i <= count; i += 1) {
         setTimeout(() => {
           const figure = document.createElement('figure');
-          figure.innerHTML = `<img src="/image.png?id=${i}" data-result-id="result-${i}" width="1" height="1" alt="结果 ${i}"><a role="button" data-result-id="result-${i}" aria-label="Download image ${i}" download="result-${i}.png" href="/image.png?id=${i}">下载</a>`;
+          figure.innerHTML = modernDom
+            ? `<img src="/image.png?id=${i}" width="1" height="1" alt="结果 ${i}"><img src="/image.png?id=${i}" width="1" height="1" alt="" aria-hidden="true"><img src="/image.png?id=${i}" width="1" height="1" alt="" aria-hidden="true">`
+            : `<img src="/image.png?id=${i}" data-result-id="result-${i}" width="1" height="1" alt="结果 ${i}"><a role="button" data-result-id="result-${i}" aria-label="Download image ${i}" download="result-${i}.png" href="/image.png?id=${i}">下载</a>`;
           assistant.appendChild(figure);
           assistant.dataset.state = i === count ? 'complete' : 'generating';
         }, 80 * i);

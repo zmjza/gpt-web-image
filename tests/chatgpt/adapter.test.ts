@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { conversationPlan } from "../../src/chatgpt/conversation.js";
+import { conversationPlan, imageGenerationPrompt, supplementImagePrompt } from "../../src/chatgpt/conversation.js";
 import { resolveSemanticTarget, SemanticLocatorError } from "../../src/chatgpt/locators.js";
 import { prepareSubmission, confirmSubmission, decideRetry } from "../../src/chatgpt/submit.js";
 import { bindResponseAnchor } from "../../src/chatgpt/response-anchor.js";
@@ -10,6 +10,16 @@ test("T20 creates fresh conversations for generate/edit and reuses refine contex
   assert.equal(conversationPlan({ kind: "edit", sourceChatUrl: null }).action, "new");
   assert.deepEqual(conversationPlan({ kind: "refine", sourceChatUrl: "https://chatgpt.com/c/1" }), { action: "reuse", chatUrl: "https://chatgpt.com/c/1" });
   assert.throws(() => conversationPlan({ kind: "refine", sourceChatUrl: null }), /上下文不可恢复/);
+});
+
+test("T20 forces native inline image delivery and forbids attachment bundles", () => {
+  const prompt = imageGenerationPrompt("生成十张几何图", 10);
+  assert.match(prompt, /内置图像生成能力/);
+  assert.match(prompt, /10 张彼此独立/);
+  assert.match(prompt, /禁止.*附件.*ZIP.*文件清单.*下载链接/);
+  assert.match(prompt, /不要把多张图片拼成一张/);
+  assert.match(supplementImagePrompt(7), /剩余 7 张/);
+  assert.match(supplementImagePrompt(7), /内置图像生成能力/);
 });
 
 test("T21 resolves by accessible semantics and rejects conflicts", () => {

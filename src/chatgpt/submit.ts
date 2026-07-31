@@ -4,7 +4,7 @@ export interface PreparedSubmission { attemptId: string; baselineMessageCount: n
 export interface SubmissionEvidence { userMessages: string[]; composerEmpty: boolean; clickFailedBeforeDispatch?: boolean; }
 export type SubmissionStatus = "confirmed" | "not_submitted" | "uncertain";
 
-function fingerprint(value: string): string { return createHash("sha256").update(value.trim()).digest("hex"); }
+function fingerprint(value: string): string { return createHash("sha256").update(value.replace(/\s+/g, "")).digest("hex"); }
 
 export function prepareSubmission(prompt: string, baselineMessageCount: number, baselineUserMessages: string[]): PreparedSubmission {
   return { attemptId: randomUUID(), baselineMessageCount, baselineUserMessages: [...baselineUserMessages], promptFingerprint: fingerprint(prompt), prompt: prompt.trim() };

@@ -22,6 +22,7 @@ import { readRememberedCount, writeRememberedCount } from "./tasks/count-memory.
 import { openProfileRuntime } from "./profiles/runtime.js";
 import { bindActiveProfile } from "./profiles/binding.js";
 import { BrowserLease } from "./browser/browser-lease.js";
+import { imageGenerationPrompt, supplementImagePrompt } from "./chatgpt/conversation.js";
 
 export interface CliIo { stdout: (line: string) => void; stderr: (line: string) => void; }
 const DEFAULT_IO: CliIo = { stdout: (line) => process.stdout.write(`${line}\n`), stderr: (line) => process.stderr.write(`${line}\n`) };
@@ -93,11 +94,11 @@ async function runImageCommand(command: "generate" | "edit" | "refine", argv: st
   try {
     task.state = "submitting"; task.startedAt = new Date().toISOString(); task.updatedAt = task.startedAt;
     await writeTaskRecord(taskPath, task);
-    let flowPrompt = prompt;
+    let flowPrompt = imageGenerationPrompt(prompt, count);
     let flowTarget = count;
     let finalChatUrl = startUrl;
     for (let round = 0; round <= config.maxSupplementRounds && task.results.length < count; round += 1) {
-      if (round > 0) { task.supplementRound = round; flowTarget = count - task.results.length; flowPrompt = `请继续生成剩余 ${flowTarget} 张图片，保持上一轮要求不变。`; await writeTaskRecord(taskPath, task); }
+      if (round > 0) { task.supplementRound = round; flowTarget = count - task.results.length; flowPrompt = supplementImagePrompt(flowTarget); await writeTaskRecord(taskPath, task); }
       const executeRound = () => runWebImageFlow({
           page: session.page, prompt: flowPrompt, targetCount: flowTarget, outputLayout: layout, referencePaths: round === 0 ? task.request.referencePaths : [],
           stabilityWindowMs: config.stabilityWindowMs, timeoutMs: config.hardTimeoutMs, knownHashes: new Set(task.results.map((entry) => (entry as { sha256?: string }).sha256).filter((value): value is string => typeof value === "string")),
@@ -106,7 +107,12 @@ async function runImageCommand(command: "generate" | "edit" | "refine", argv: st
           onSubmissionConfirmed: async () => { task.submission.confirmedAt = new Date().toISOString(); task.submission.confirmationEvidence = ["matching_user_turn", "composer_empty"]; task.state = "submitted"; await writeTaskRecord(taskPath, task); },
           onResponseAnchor: async (anchor, chatUrl) => { task.responseAnchor = anchor; task.chatUrl = chatUrl; await writeTaskRecord(taskPath, task); },
           onState: (state) => writer.write({ taskId: task.taskId, type: "progress", state: state === "queued" ? "queued" : state === "generating" ? "generating" : "partial", message: state, completed: task.results.length, target: count, recoverable: true }),
-          onImage: async (image) => { task.results.push(image); task.updatedAt = new Date().toISOString(); await writeTaskRecord(taskPath, task); images.emit(task.taskId, image, task.results.length, count); task.lastEventSeq = writer.currentSequence; await writeTaskRecord(taskPath, task); },
+          onImage: async (image) => {
+            const latest = await readTaskRecord(taskPath).catch(() => task);
+            task.cancelRequestedAt ??= latest.cancelRequestedAt;
+            task.results.push(image); task.updatedAt = new Date().toISOString(); await writeTaskRecord(taskPath, task);
+            images.emit(task.taskId, image, task.results.length, count); task.lastEventSeq = writer.currentSequence; await writeTaskRecord(taskPath, task);
+          },
           isCancelled: async () => (await readTaskRecord(taskPath)).cancelRequestedAt !== null
         });
       let result;
@@ -127,13 +133,17 @@ async function runImageCommand(command: "generate" | "edit" | "refine", argv: st
       finalChatUrl = result.chatUrl;
       if (result.state === "succeeded" && task.results.length >= count) break;
     }
-    task.state = task.results.length >= count ? "succeeded" : task.results.length > 0 ? "partial_success" : "failed"; task.chatUrl = finalChatUrl; task.finishedAt = new Date().toISOString(); task.updatedAt = task.finishedAt;
+    const latestBeforeFinish = await readTaskRecord(taskPath).catch(() => task);
+    task.cancelRequestedAt ??= latestBeforeFinish.cancelRequestedAt;
+    task.state = task.cancelRequestedAt ? "cancelled" : task.results.length >= count ? "succeeded" : task.results.length > 0 ? "partial_success" : "failed"; task.chatUrl = finalChatUrl; task.finishedAt = new Date().toISOString(); task.updatedAt = task.finishedAt;
     await writeTaskRecord(taskPath, task);
     writer.write({ taskId: task.taskId, type: "terminal", state: task.state, message: `${task.results.length}/${count} 张图片已交付`, completed: task.results.length, target: count, recoverable: task.state === "partial_success" });
     task.lastEventSeq = writer.currentSequence; await writeTaskRecord(taskPath, task);
     return task.state === "succeeded" ? 0 : 10;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const latestTask = await readTaskRecord(taskPath).catch(() => task);
+    task.cancelRequestedAt ??= latestTask.cancelRequestedAt;
     const state: TaskState = /TASK_CANCELLED/.test(message) ? "cancelled" : task.results.length > 0 ? "partial_success" : /LOGIN_REQUIRED/.test(message) ? "needs_login" : /HUMAN_VERIFICATION/.test(message) ? "needs_human_verification" : /PAGE_STRUCTURE_CHANGED/.test(message) ? "structure_changed" : /TIMED_OUT/.test(message) ? "timed_out" : /SUBMISSION/.test(message) ? "result_uncertain" : "failed";
     task.state = state; task.failures.push({ code: message.split(":", 1)[0], message }); task.finishedAt = new Date().toISOString(); task.updatedAt = task.finishedAt;
     await writeTaskRecord(taskPath, task).catch(() => undefined);
