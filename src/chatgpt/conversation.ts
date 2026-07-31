@@ -9,10 +9,12 @@ export function conversationPlan(input: { kind: RequestKind; sourceChatUrl: stri
 
 function inlineDeliveryRequirements(count: number): string {
   return [
-    `必须调用 ChatGPT 内置图像生成能力，生成 ${count} 张彼此独立的图片。`,
-    "每张图片必须直接作为回复正文中的可见生成图片展示。",
-    "禁止使用 Python、代码解释器、Canvas 或其他程序创建图片；禁止作为附件、ZIP、文件清单、下载链接或打包文件交付。",
-    "不要把多张图片拼成一张，也不要只回复文件名或说明文字。"
+    `只使用 ChatGPT 内置图像生成能力，生成 ${count} 张彼此独立的图片。`,
+    "每张图片都必须在这一条回复正文中作为真实、可见、可预览的生成图片逐张渲染；生成一张就直接显示一张。",
+    "禁止使用 Python、代码解释器、Canvas、HTML、Markdown 模拟图、脚本或其他程序创建、拼接或导出图片。",
+    "禁止返回附件卡片、PNG/JPG 文件、ZIP、压缩包、文件清单、文件名列表、下载链接、网页、表格或仅包含说明文字的结果。",
+    "不要把多张图片拼成一张，不要把图片做成‘下载全部’或‘打包下载’；不要在回复中声称已生成却不直接显示图片。",
+    "如果无法以内置图像生成方式直接显示图片，明确报告生成失败，不要改用文件或代码交付。"
   ].join("\n");
 }
 

@@ -17,6 +17,9 @@ test("T20 forces native inline image delivery and forbids attachment bundles", (
   assert.match(prompt, /内置图像生成能力/);
   assert.match(prompt, /10 张彼此独立/);
   assert.match(prompt, /禁止.*附件.*ZIP.*文件清单.*下载链接/);
+  assert.match(prompt, /禁止.*网页.*表格/);
+  assert.match(prompt, /真实、可见、可预览.*逐张渲染/);
+  assert.match(prompt, /无法.*直接显示图片.*生成失败/);
   assert.match(prompt, /不要把多张图片拼成一张/);
   assert.match(supplementImagePrompt(7), /剩余 7 张/);
   assert.match(supplementImagePrompt(7), /内置图像生成能力/);
