@@ -95,3 +95,19 @@
 **相关文件或命令**：`.gitignore`、`src/profiles/`、`tests/profiles/`、`git check-ignore --no-index`、`git ls-tree`、`npm test`。
 
 **适用范围**：Profile 管理、跨平台 CI、首次提交和所有与运行数据同名的源码/测试目录。
+
+## Windows 夹具必须给瞬时状态留出跨平台观察窗口
+
+**现象**：Windows Actions run `30752880669` 只有 T37 夹具用例失败；断言要求观察到 `queued`，但其余生成、下载、10 张上限和安全用例均通过。本机同一用例通过。
+
+**根因**：夹具原先只让助手回复保持 `queued` 30ms。Windows runner 的浏览器调度和提交确认耗时更长，第一次轮询已经读到 `generating`，导致瞬时状态断言不稳定；这不是生产网页或真实账号失败证据。
+
+**正确做法**：对需要验证瞬时状态的夹具提供显式 `queueDelay` 参数，在 T37 用例中设置足够但有限的窗口（当前为 200ms），仍保留 `queued -> generating -> image_ready -> complete` 的状态合同；不要删除排队断言或用固定 sleep 伪造事件。
+
+**验证方式**：`tests/integration/web-flow.test.ts` 的 T37 目标用例和 `npm test` 在本机通过；修复后必须等待包含该修复的最新 Windows Actions 绿色结果，不能复用失败 run `30752880669`。
+
+**禁止事项**：不得把偶发 Windows 夹具失败直接写成真实 ChatGPT 失败；不得只重跑而不判断根因；不得通过放宽业务状态机或删除逐状态断言掩盖竞态。
+
+**相关文件或命令**：`tests/fixtures/chatgpt-page/index.html`、`tests/integration/web-flow.test.ts`、`.github/workflows/windows.yml`、Windows Actions run `30752880669`。
+
+**适用范围**：跨平台浏览器夹具、排队/生成瞬态状态、Windows CI 和所有依赖时序的集成测试。

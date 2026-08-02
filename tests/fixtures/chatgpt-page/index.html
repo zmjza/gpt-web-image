@@ -17,6 +17,7 @@
     const count = Number(params.get('count') || '2');
     const readyDelay = Number(params.get('readyDelay') || '0');
     const loginFlash = Number(params.get('loginFlash') || '0');
+    const queueDelay = Number(params.get('queueDelay') || '30');
     const modernDom = params.get('dom') === 'modern';
     const form = document.querySelector('#composer-form');
     let input = form.querySelector('#prompt-textarea');
@@ -68,7 +69,7 @@
         setTimeout(() => { assistant.dataset.state = 'failed'; assistant.innerHTML = '<p role="alert">429 rate limited</p>'; }, 50);
         return;
       }
-      setTimeout(() => { assistant.dataset.state = 'generating'; assistant.querySelector('[data-status]').textContent = '生成中'; }, 30);
+      setTimeout(() => { assistant.dataset.state = 'generating'; assistant.querySelector('[data-status]').textContent = '生成中'; }, queueDelay);
       for (let i = 1; i <= count; i += 1) {
         setTimeout(() => {
           const figure = document.createElement('figure');
