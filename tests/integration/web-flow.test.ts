@@ -36,7 +36,7 @@ test("T37 controlled browser fixture proves queued -> progressive images -> comp
   const browser = await chromium.launch({ executablePath: chrome.path as string, headless: true });
   try {
     const page = await browser.newPage({ acceptDownloads: true });
-    await page.goto(`${fixture.url}/?scenario=success&count=2&queueDelay=1000`);
+    await page.goto(`${fixture.url}/?scenario=success&count=2&queueDelay=3000`);
     const layout = await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-flow-")), new Date("2026-07-30T00:00:00Z"), "fixture_task");
     const observed: string[] = [];
     const result = await runWebImageFlow({
@@ -46,7 +46,7 @@ test("T37 controlled browser fixture proves queued -> progressive images -> comp
       outputLayout: layout,
       stabilityWindowMs: 20,
       pollIntervalMs: 20,
-      timeoutMs: 5000,
+      timeoutMs: 8000,
       onSubmissionConfirmed: () => new Promise((resolve) => setTimeout(resolve, 75)),
       onState: (state) => observed.push(state)
     });
