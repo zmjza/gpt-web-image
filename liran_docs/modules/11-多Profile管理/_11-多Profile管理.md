@@ -10,7 +10,7 @@
 
 ## 当前状态
 
-第一次 `/goal` 内部实现已完成。ProfileRegistry、默认目录扫描、创建/导入/编辑、唯一启用、Plus/Pro/Go 资格分类、全局 BrowserLease、目录迁移/保留、页面二次删除确认、完整备份/恢复和任务 Profile 快照绑定已落地。自动流程不能发放删除确认，CLI 生图不再回退旧单 Profile 配置。当前提交 `033063c` 对应 Windows Actions run `30652217424` / job `91227975601` 已成功；隔离管理页面已实测创建、导入、备注、迁移/保留、双确认删除、备份恢复和图片删除保护。真实 BrowserLease 标签页生命周期仍待实测，Windows x64 由用户最终验收。
+第一次 `/goal` 内部实现已完成。ProfileRegistry、默认目录扫描、创建/导入/编辑、唯一启用、Plus/Pro/Go 资格分类、全局 BrowserLease、目录迁移/保留、页面二次删除确认、完整备份/恢复和任务 Profile 快照绑定已落地。自动流程不能发放删除确认，CLI 生图不再回退旧单 Profile 配置。当前提交 `033063c` 对应 Windows Actions run `30652217424` / job `91227975601` 已成功；隔离管理页面已实测创建、导入、备注、迁移/保留、双确认删除、备份恢复和图片删除保护。MP-4 已用一次性临时 Profile 的真实 Chrome 完成 BrowserLease、普通/任务标签页和关闭清理检查；真实用户 Profile 未触碰，Windows x64 由用户最终验收。
 
 ## 安全边界
 
