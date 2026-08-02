@@ -20,6 +20,8 @@ export interface WebImageFlowOptions {
   outputLayout: OutputLayout;
   referencePaths?: string[];
   submit?: boolean;
+  /** Resume an already-confirmed assistant turn without creating a new submission. */
+  resumeAssistantOrdinal?: number;
   stabilityWindowMs: number;
   pollIntervalMs?: number;
   timeoutMs: number;
@@ -183,11 +185,15 @@ export async function runWebImageFlow(options: WebImageFlowOptions): Promise<Web
     const [capturedState] = await Promise.all([initialStatePromise, options.onSubmissionConfirmed?.()]);
     initialPageState = capturedState ?? "";
   }
-  await page.waitForFunction((count) => {
-    const modern = document.querySelectorAll('[data-turn="assistant"]');
-    return (modern.length > 0 ? modern : document.querySelectorAll('[data-message-author-role="assistant"]')).length > count;
-  }, assistantBaseline, { timeout: Math.min(options.timeoutMs, 10000) });
-  const assistantIndex = assistantBaseline;
+  const assistantIndex = options.submit === false && options.resumeAssistantOrdinal !== undefined
+    ? Math.max(0, options.resumeAssistantOrdinal - 1)
+    : assistantBaseline;
+  if (options.submit !== false || options.resumeAssistantOrdinal === undefined) {
+    await page.waitForFunction((count) => {
+      const modern = document.querySelectorAll('[data-turn="assistant"]');
+      return (modern.length > 0 ? modern : document.querySelectorAll('[data-message-author-role="assistant"]')).length > count;
+    }, assistantBaseline, { timeout: Math.min(options.timeoutMs, 10000) });
+  }
   const assistant = (await turnLocator(page, "assistant")).nth(assistantIndex);
   await options.onResponseAnchor?.({ userTurnOrdinal: userBaseline.length + 1, assistantTurnOrdinal: assistantIndex + 1, semanticFingerprint: createHash("sha256").update(`${page.url()}:${userBaseline.length + 1}:${assistantIndex + 1}`).digest("hex"), boundAt: new Date().toISOString() }, page.url());
   if (initialPageState) options.onState?.(initialPageState);

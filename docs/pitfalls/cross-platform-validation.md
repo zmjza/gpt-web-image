@@ -127,3 +127,19 @@
 **相关文件或命令**：`package.json`、`package-lock.json`、`src/cli.ts`、`tests/cli/cli.test.ts`、`node dist/src/cli.js --version`。
 
 **适用范围**：SemVer 递增、安装候选验证、CLI 诊断、Windows CI 和发布前门禁。
+
+## resume 必须绑定已有助手回合而不是等待新回复
+
+**现象**：`resume` 虽然能判断任务已经确认提交，但若只输出恢复决策而不重建网页观察器，任务会停在中间状态；若 observer 仍等待助手数量增加，又会错过崩溃前已经创建的助手回合。
+
+**根因**：恢复需要同时复用任务绑定的 Profile、原会话 URL 和持久化的 `assistantTurnOrdinal`，不能把恢复误当成新提交。
+
+**正确做法**：只有具备 `attemptId`、`confirmedAt`、`chatUrl` 和 `responseAnchor` 时才打开原会话；使用 `submit=false` 并直接绑定已存在的助手回合，继续下载、校验和逐图事件。证据不足时保持 `result_uncertain` 且不执行网页写操作。
+
+**验证方式**：`tests/integration/web-flow.test.ts` 的 T34 恢复 observer 用例验证同一用户回合没有第二次提交且能交付剩余图片；`npm run typecheck`、`npm test` 和最新 Windows CI 必须通过。
+
+**禁止事项**：不得在恢复时重新发送提示词、默认选择新助手回合、用固定延时代替回合锚点，或把受控夹具结果写成真实 ChatGPT 证据。
+
+**相关文件或命令**：`src/cli.ts`、`src/chatgpt/web-flow.ts`、`src/persistence/recover.ts`、`tests/integration/web-flow.test.ts`。
+
+**适用范围**：提交后中断恢复、登录接管后的继续观察、逐图下载和 JSONL 实时回显。

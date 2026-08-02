@@ -2,7 +2,7 @@
 
 import { mkdir, readdir } from "node:fs/promises";
 import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "./config/load.js";
 import { runDoctor } from "./commands/doctor.js";
@@ -11,7 +11,7 @@ import { cleanupDiagnostics } from "./diagnostics/cleanup.js";
 import { inspectChrome } from "./platform/chrome.js";
 import { createTaskId } from "./tasks/id.js";
 import { createTaskRecord, type TaskRecord, type TaskState } from "./tasks/model.js";
-import { createOutputLayout } from "./images/output-layout.js";
+import { createOutputLayout, layoutFromTaskDir } from "./images/output-layout.js";
 import { readTaskRecord, writeTaskRecord } from "./persistence/task-store.js";
 import { launchProfile, PROFILE_RETENTION_POLICY, profileMarkerPath, type BrowserSession } from "./browser/profile.js";
 import { waitForReadyComposer } from "./browser/login.js";
@@ -41,6 +41,50 @@ async function findTask(outputRoot: string, taskId: string): Promise<string | nu
     try { await readTaskRecord(candidate); return candidate; } catch { /* continue */ }
   }
   return null;
+}
+
+async function resumeObserver(taskPath: string, task: TaskRecord, config: Awaited<ReturnType<typeof loadConfig>>, io: CliIo): Promise<number> {
+  const decision = auditRecovery(task);
+  if (decision.action !== "resume_observer") { io.stdout(JSON.stringify(decision)); return decision.action === "result_uncertain" ? 41 : 0; }
+  if (!task.profileBinding || !task.chatUrl || !task.responseAnchor) { io.stdout(JSON.stringify({ action: "result_uncertain", maySubmit: false, reason: "missing_context" })); return 41; }
+  const chrome = inspectChrome({ configuredPath: config.chromeExecutablePath ?? undefined });
+  if (!chrome.path) { io.stderr("未找到 Google Chrome"); return 20; }
+  const runtime = await openProfileRuntime(config.profileDir);
+  const lease = new BrowserLease(runtime.dataRoot, { profileId: task.profileBinding.profileId, profileDir: task.profileBinding.profileDir, ownerType: "task" });
+  await lease.acquire();
+  let session: BrowserSession;
+  try { session = await launchProfile({ profileDir: task.profileBinding.profileDir, executablePath: chrome.path, headed: false, url: task.chatUrl }); }
+  catch (error) { await lease.release(); throw error; }
+  const layout = layoutFromTaskDir(dirname(taskPath));
+  const writer = new EventWriter({ stdout: io.stdout, initialSequence: task.lastEventSeq });
+  const images = new ImageReadyEmitter(writer);
+  task.state = "recovering"; task.updatedAt = new Date().toISOString(); await writeTaskRecord(taskPath, task);
+  writer.write({ taskId: task.taskId, type: "progress", state: "recovering", message: "正在恢复已确认提交的网页监控", completed: task.results.length, target: task.targetCount, recoverable: true });
+  try {
+    const remaining = Math.max(0, task.targetCount - task.results.length);
+    if (remaining === 0) { task.state = "succeeded"; }
+    else {
+      const result = await runWebImageFlow({
+        page: session.page, prompt: task.request.prompt, targetCount: remaining, outputLayout: layout, submit: false, resumeAssistantOrdinal: task.responseAnchor.assistantTurnOrdinal,
+        stabilityWindowMs: config.stabilityWindowMs, timeoutMs: config.hardTimeoutMs,
+        knownHashes: new Set(task.results.map((entry) => (entry as { sha256?: string }).sha256).filter((value): value is string => typeof value === "string")),
+        onState: (state) => writer.write({ taskId: task.taskId, type: "progress", state: state === "queued" ? "queued" : state === "generating" ? "generating" : "partial", message: state, completed: task.results.length, target: task.targetCount, recoverable: true }),
+        onImage: async (image) => { task.results.push(image); task.updatedAt = new Date().toISOString(); await writeTaskRecord(taskPath, task); images.emit(task.taskId, image, task.results.length, task.targetCount); task.lastEventSeq = writer.currentSequence; await writeTaskRecord(taskPath, task); },
+        isCancelled: async () => (await readTaskRecord(taskPath)).cancelRequestedAt !== null
+      });
+      task.chatUrl = result.chatUrl; task.state = task.results.length >= task.targetCount ? "succeeded" : "partial_success";
+    }
+    task.finishedAt = new Date().toISOString(); task.updatedAt = task.finishedAt; await writeTaskRecord(taskPath, task);
+    writer.write({ taskId: task.taskId, type: "terminal", state: task.state, message: `恢复完成：${task.results.length}/${task.targetCount} 张图片已交付`, completed: task.results.length, target: task.targetCount, recoverable: task.state === "partial_success" });
+    task.lastEventSeq = writer.currentSequence; await writeTaskRecord(taskPath, task);
+    return task.state === "succeeded" ? 0 : 10;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    task.state = /TASK_CANCELLED/.test(message) ? "cancelled" : task.results.length > 0 ? "partial_success" : /TIMED_OUT/.test(message) ? "timed_out" : "result_uncertain";
+    task.failures.push({ code: message.split(":", 1)[0], message }); task.finishedAt = new Date().toISOString(); task.updatedAt = task.finishedAt; await writeTaskRecord(taskPath, task);
+    writer.write({ taskId: task.taskId, type: "terminal", state: task.state, message: message.replace(/cookie|authorization|token|password/gi, "[REDACTED]"), completed: task.results.length, target: task.targetCount, recoverable: true });
+    return task.state === "partial_success" ? 10 : 41;
+  } finally { await session.close(); await lease.release(); }
 }
 
 function parsePrompt(argv: string[]): string {
@@ -183,7 +227,7 @@ export async function runCli(argv: string[] = process.argv.slice(2), io: CliIo =
     if (command === "resume") {
       const config = await loadConfig({ configPath: option(argv, "--config") }); const taskId = option(argv, "--task-id") ?? argv[1];
       if (!taskId) return 20; const path = await findTask(option(argv, "--output-dir") ?? config.fallbackOutputDir, taskId); if (!path) return 20;
-      const decision = auditRecovery(await readTaskRecord(path)); io.stdout(JSON.stringify(decision)); return decision.action === "result_uncertain" ? 41 : 0;
+      return resumeObserver(path, await readTaskRecord(path), config, io);
     }
     if (command === "cancel") {
       const config = await loadConfig({ configPath: option(argv, "--config") }); const taskId = option(argv, "--task-id") ?? argv[1];
