@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+import { resolve } from "node:path";
 
 const shellFiles = [
   "src/manager/public/index.html",
@@ -68,4 +70,18 @@ test("T62-T77 image UI preserves single-Profile request isolation and has no del
   assert.match(source, /\/images\/scan/);
   assert.match(source, /generatedAt_desc/);
   assert.doesNotMatch(source, /method\s*:\s*["']DELETE["'][\s\S]{0,200}images/);
+});
+
+test("IMG-4 distinguishes an empty Profile from an empty filtered result", async () => {
+  const contracts = await import(pathToFileURL(resolve("src/manager/public/ui-contracts.js")).href);
+
+  assert.equal(contracts.imageEmptyStateMessage({}), "该 Profile 暂无图片");
+  assert.equal(
+    contracts.imageEmptyStateMessage({ sort: "generatedAt_desc", group: "recent_project" }),
+    "该 Profile 暂无图片"
+  );
+  assert.equal(
+    contracts.imageEmptyStateMessage({ keyword: "does-not-exist", sort: "generatedAt_desc" }),
+    "没有符合当前筛选条件的图片"
+  );
 });
