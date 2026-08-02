@@ -102,7 +102,7 @@
 
 **根因**：夹具原先只让助手回复保持 `queued` 30ms。Windows runner 的浏览器调度和提交确认耗时更长，第一次轮询已经读到 `generating`，导致瞬时状态断言不稳定；这不是生产网页或真实账号失败证据。
 
-**正确做法**：对需要验证瞬时状态的夹具提供显式 `queueDelay` 参数，在 T37 用例中设置足够但有限的窗口（当前为 200ms），仍保留 `queued -> generating -> image_ready -> complete` 的状态合同；不要删除排队断言或用固定 sleep 伪造事件。
+**正确做法**：对需要验证瞬时状态的夹具提供显式 `queueDelay` 参数，在 T37 用例中设置足够但有限的窗口（当前为 1000ms）；图片仍在窗口内完成，且保留 `queued -> generating -> image_ready -> complete` 的状态合同。不要删除排队断言或用固定 sleep 伪造事件。
 
 **验证方式**：`tests/integration/web-flow.test.ts` 的 T37 目标用例和 `npm test` 在本机通过；修复后必须等待包含该修复的最新 Windows Actions 绿色结果，不能复用失败 run `30752880669`。
 
