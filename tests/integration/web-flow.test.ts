@@ -64,11 +64,11 @@ test("T34 resumes an anchored assistant turn without submitting a second message
   const browser = await chromium.launch({ executablePath: chrome.path as string, headless: true });
   try {
     const page = await browser.newPage({ acceptDownloads: true });
-    await page.goto(`${fixture.url}/?scenario=success&count=2`);
+    await page.goto(`${fixture.url}/?scenario=success&count=2&queueDelay=1000`);
     const root = await mkdtemp(join(tmpdir(), "gwi-resume-observer-"));
     const first = await runWebImageFlow({ page, prompt: "恢复观察", targetCount: 1, outputLayout: await createOutputLayout(root, new Date(), "resume_first"), stabilityWindowMs: 20, pollIntervalMs: 20, timeoutMs: 3000 });
     assert.equal(first.results.length, 1);
-    const resumed = await runWebImageFlow({ page, prompt: "恢复观察", targetCount: 1, outputLayout: await createOutputLayout(root, new Date(), "resume_second"), submit: false, resumeAssistantOrdinal: 1, knownHashes: new Set(first.results.map((image) => image.sha256)), stabilityWindowMs: 20, pollIntervalMs: 20, timeoutMs: 3000 });
+    const resumed = await runWebImageFlow({ page, prompt: "恢复观察", targetCount: 1, outputLayout: await createOutputLayout(root, new Date(), "resume_second"), submit: false, resumeAssistantOrdinal: 2, knownHashes: new Set(first.results.map((image) => image.sha256)), stabilityWindowMs: 20, pollIntervalMs: 20, timeoutMs: 10000 });
     assert.equal(resumed.results.length, 1);
     assert.notEqual(resumed.results[0]?.sha256, first.results[0]?.sha256);
   } finally { await browser.close(); await fixture.close(); }
