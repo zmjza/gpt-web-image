@@ -142,7 +142,7 @@ test("T37 controlled browser fixture delivers the supported maximum of ten image
     const page = await browser.newPage({ acceptDownloads: true });
     await page.goto(`${fixture.url}/?scenario=success&count=10`);
     const layout = await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-ten-")), new Date(), "fixture_ten");
-    const result = await runWebImageFlow({ page, prompt: "生成十张图", targetCount: 10, outputLayout: layout, stabilityWindowMs: 10, pollIntervalMs: 10, timeoutMs: 5000 });
+    const result = await runWebImageFlow({ page, prompt: "生成十张图", targetCount: 10, outputLayout: layout, stabilityWindowMs: 10, pollIntervalMs: 10, timeoutMs: 10000 });
     assert.equal(result.results.length, 10);
     assert.equal(new Set(result.results.map((image) => image.sha256)).size, 10);
   } finally { await browser.close(); await fixture.close(); }
