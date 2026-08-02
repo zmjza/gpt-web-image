@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCli } from "../../src/cli.js";
@@ -26,8 +26,9 @@ test("T35 executes the documented relative CLI entrypoint", async () => {
   const stdout: Buffer[] = [];
   child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
   const exitCode = await new Promise<number | null>((resolve) => child.once("close", resolve));
+  const expectedVersion = JSON.parse(await readFile("package.json", "utf8")).version;
   assert.equal(exitCode, 0);
-  assert.match(Buffer.concat(stdout).toString("utf8"), /gpt-web-image 0\.1\.1/);
+  assert.equal(Buffer.concat(stdout).toString("utf8").trim(), `gpt-web-image ${expectedVersion}`);
 });
 
 test("T36 installs and upgrades an owned user skill without overwriting foreign data", async () => {

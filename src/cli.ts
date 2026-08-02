@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { mkdir, readdir } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "./config/load.js";
@@ -26,6 +27,7 @@ import { imageGenerationPrompt, supplementImagePrompt } from "./chatgpt/conversa
 
 export interface CliIo { stdout: (line: string) => void; stderr: (line: string) => void; }
 const DEFAULT_IO: CliIo = { stdout: (line) => process.stdout.write(`${line}\n`), stderr: (line) => process.stderr.write(`${line}\n`) };
+const PACKAGE_VERSION = (JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as { version: string }).version;
 
 function option(argv: string[], name: string): string | undefined { const index = argv.indexOf(name); return index >= 0 ? argv[index + 1] : undefined; }
 function options(argv: string[], name: string): string[] { return argv.flatMap((value, index) => value === name && argv[index + 1] ? [argv[index + 1] as string] : []); }
@@ -163,7 +165,7 @@ async function runImageCommand(command: "generate" | "edit" | "refine", argv: st
 
 export async function runCli(argv: string[] = process.argv.slice(2), io: CliIo = DEFAULT_IO): Promise<number> {
   const command = argv[0];
-  if (command === "--version" || command === "version") { io.stdout("gpt-web-image 0.1.1"); return 0; }
+  if (command === "--version" || command === "version") { io.stdout(`gpt-web-image ${PACKAGE_VERSION}`); return 0; }
   try {
     if (command === "doctor") {
       const config = await loadConfig({ configPath: option(argv, "--config") });

@@ -111,3 +111,19 @@
 **相关文件或命令**：`tests/fixtures/chatgpt-page/index.html`、`tests/integration/web-flow.test.ts`、`.github/workflows/windows.yml`、Windows Actions run `30752880669`。
 
 **适用范围**：跨平台浏览器夹具、排队/生成瞬态状态、Windows CI 和所有依赖时序的集成测试。
+
+## CLI 版本输出不能维护独立硬编码值
+
+**现象**：项目版本已从 `0.1.1` 递增到 `0.2.1`，但 `gpt-web-image --version` 仍输出 `0.1.1`，原测试也把旧值写死后继续通过。
+
+**根因**：CLI 和测试各自维护一份版本字符串，没有以 `package.json` 为单一真源。
+
+**正确做法**：CLI 从项目根 `package.json` 读取版本；版本测试同样读取 `package.json.version` 并与 CLI 输出全等比较。SemVer 变更时同步 package lock、CHANGELOG，并实际执行 `node dist/src/cli.js --version`。
+
+**验证方式**：运行 `npm run build`、`node --test dist/tests/cli/cli.test.js` 和 `node dist/src/cli.js --version`，输出必须与 `package.json.version` 一致。
+
+**禁止事项**：不得在 CLI、安装脚本或测试里维护彼此独立的版本常量；不得因旧测试绿色就认为版本元数据一致。
+
+**相关文件或命令**：`package.json`、`package-lock.json`、`src/cli.ts`、`tests/cli/cli.test.ts`、`node dist/src/cli.js --version`。
+
+**适用范围**：SemVer 递增、安装候选验证、CLI 诊断、Windows CI 和发布前门禁。
