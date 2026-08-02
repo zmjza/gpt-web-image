@@ -63,3 +63,19 @@
 **相关文件或命令**：`src/config/schema.ts`、`src/browser/profile.ts`、`src/commands/doctor.ts`、`src/diagnostics/cleanup.ts`、`node dist/src/cli.js doctor --json`、`node dist/src/cli.js setup`。
 
 **适用范围**：macOS ARM64 和 Windows x64 的首次登录、会话复用、登录失效接管和清理操作。
+
+## 恢复任务不能保存临时 WEB 会话链接或沿用旧标签页
+
+**现象**：真实 ChatGPT 提交确认阶段可能短暂出现 `https://chatgpt.com/c/WEB:...`，直接重开会话会跳回首页；Chrome 重新启动还可能恢复上次旧会话页，导致恢复任务找不到原助手回合或观察错会话。
+
+**根因**：临时会话标识尚未稳定为侧栏中的 UUID URL；专用 Profile 的 Chrome 会话恢复也不保证启动参数 URL 覆盖已恢复标签页。
+
+**正确做法**：只接受稳定的 `https://chatgpt.com/c/<UUID>` 作为 `chatUrl`，临时 `WEB:` 链接不得写入任务锚点；启动后显式导航到任务要求的 URL，再按 `assistantTurnOrdinal` 等待原助手回合挂载。
+
+**验证方式**：真实任务 `task_msc136ro_76vi3ms0` 在提交确认后中断，`resume` 复用稳定 UUID 会话并交付 PNG；文件、任务哈希和 `image_ready` 一致，终态 `succeeded`，没有第二次提交。
+
+**禁止事项**：不得把 `WEB:` 临时链接当作可恢复会话；不得依赖 Chrome 恢复的旧标签页；不得在恢复失败时默认新建会话或重复发送提示词。
+
+**相关文件或命令**：`src/chatgpt/web-flow.ts`、`src/browser/profile.ts`、`src/cli.ts`、`node dist/src/cli.js resume`。
+
+**适用范围**：真实 ChatGPT 提交确认、连续修改、提交后中断恢复和 Profile 重启。

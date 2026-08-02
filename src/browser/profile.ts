@@ -128,6 +128,10 @@ export async function launchProfile(options: LaunchProfileOptions): Promise<Brow
   await lock.acquire();
   try {
     const launched = await connectToChrome(options.profileDir, options.executablePath, options.url ?? "about:blank", !options.headed);
+    const targetUrl = options.url ?? "about:blank";
+    if (targetUrl !== "about:blank" && launched.page.url() !== targetUrl) {
+      await launched.page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => undefined);
+    }
     let closed = false;
     return {
       context: launched.context,

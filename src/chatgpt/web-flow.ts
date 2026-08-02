@@ -58,6 +58,10 @@ async function conversationLinks(page: Page): Promise<string[]> {
   return page.locator('a[href*="/c/"]').evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).href).filter(Boolean)).catch(() => []);
 }
 
+function isStableConversationUrl(value: string): boolean {
+  return /^https:\/\/chatgpt\.com\/c\/[a-f0-9-]{20,}(?:[/?#]|$)/i.test(value) && !/\/c\/WEB:/i.test(value);
+}
+
 async function composerText(composer: Locator): Promise<string> {
   return composer.evaluate((element) => {
     if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) return element.value;
@@ -86,8 +90,8 @@ async function waitForSubmissionConfirmation(page: Page, prepared: PreparedSubmi
   while (Date.now() < deadline) {
     const links = await conversationLinks(page);
     const currentUrl = page.url();
-    const conversationUrl = links.find((link) => !baselineConversationLinks.has(link))
-      ?? (/\/c\/[a-z0-9-]+/i.test(currentUrl) && !baselineConversationLinks.has(currentUrl) ? currentUrl : null);
+    const conversationUrl = links.find((link) => isStableConversationUrl(link) && !baselineConversationLinks.has(link))
+      ?? (isStableConversationUrl(currentUrl) && !baselineConversationLinks.has(currentUrl) ? currentUrl : null);
     status = confirmSubmission(prepared, { userMessages: await userMessageTexts(page), composerEmpty: await composerIsEmpty(page), conversationCreated: conversationUrl !== null });
     if (status === "confirmed") return { status, conversationUrl };
     await page.waitForTimeout(100);
@@ -96,7 +100,7 @@ async function waitForSubmissionConfirmation(page: Page, prepared: PreparedSubmi
 }
 
 async function openSubmittedConversation(page: Page, conversationUrl: string | null): Promise<void> {
-  if (!conversationUrl || /\/c\/[a-z0-9-]+/i.test(page.url())) return;
+  if (!conversationUrl || isStableConversationUrl(page.url())) return;
   await page.goto(conversationUrl, { waitUntil: "domcontentloaded", timeout: 10_000 }).catch(() => undefined);
 }
 
@@ -109,6 +113,17 @@ async function waitForExistingConversation(page: Page, timeoutMs: number): Promi
     await page.waitForTimeout(100);
   }
   throw new Error("PAGE_STRUCTURE_CHANGED: conversation");
+}
+
+async function waitForAssistantTurn(page: Page, index: number, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + Math.min(timeoutMs, 30_000);
+  while (Date.now() < deadline) {
+    const modern = await page.locator(modernTurnSelector("assistant")).count();
+    const legacy = modern > 0 ? 0 : await page.locator(legacyTurnSelector("assistant")).count();
+    if (Math.max(modern, legacy) > index) return;
+    await page.waitForTimeout(100);
+  }
+  throw new Error("PAGE_STRUCTURE_CHANGED: assistant turn");
 }
 
 async function fillStableComposer(page: Page, prompt: string, timeoutMs: number, pollIntervalMs: number): Promise<Locator> {
@@ -193,6 +208,8 @@ export async function runWebImageFlow(options: WebImageFlowOptions): Promise<Web
       const modern = document.querySelectorAll('[data-turn="assistant"]');
       return (modern.length > 0 ? modern : document.querySelectorAll('[data-message-author-role="assistant"]')).length > count;
     }, assistantBaseline, { timeout: Math.min(options.timeoutMs, 10000) });
+  } else {
+    await waitForAssistantTurn(page, assistantIndex, options.timeoutMs);
   }
   const assistant = (await turnLocator(page, "assistant")).nth(assistantIndex);
   await options.onResponseAnchor?.({ userTurnOrdinal: userBaseline.length + 1, assistantTurnOrdinal: assistantIndex + 1, semanticFingerprint: createHash("sha256").update(`${page.url()}:${userBaseline.length + 1}:${assistantIndex + 1}`).digest("hex"), boundAt: new Date().toISOString() }, page.url());
