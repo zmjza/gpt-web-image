@@ -194,11 +194,14 @@ export async function runWebImageFlow(options: WebImageFlowOptions): Promise<Web
       return response ? response.getAttribute("data-state") ?? "generating" : false;
     }, assistantBaseline, { timeout: Math.min(options.timeoutMs, 10000) }).then((handle) => handle.jsonValue() as Promise<string>).catch(() => undefined);
     await submit.click();
+    const clickedAssistant = (await turnLocator(page, "assistant")).nth(assistantBaseline);
+    const clickedState = await clickedAssistant.getAttribute("data-state", { timeout: 2_000 }).catch(() => null);
+    if (clickedState && !initialPageState) initialPageState = clickedState;
     const confirmation = await waitForSubmissionConfirmation(page, prepared, baselineConversationLinks, options.timeoutMs);
     if (confirmation.status !== "confirmed") throw new Error(`SUBMISSION_${confirmation.status.toUpperCase()}`);
     await openSubmittedConversation(page, confirmation.conversationUrl);
     const [capturedState] = await Promise.all([initialStatePromise, options.onSubmissionConfirmed?.()]);
-    initialPageState = capturedState ?? "";
+    initialPageState ||= capturedState ?? "";
   }
   const assistantIndex = options.submit === false && options.resumeAssistantOrdinal !== undefined
     ? Math.max(0, options.resumeAssistantOrdinal - 1)
