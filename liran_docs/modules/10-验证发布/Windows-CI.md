@@ -35,3 +35,9 @@ CI 不登录真实 ChatGPT，不证明网页真实流程完成。不得把模拟
 - 失败 run `30834139133` / job `91755062305`（提交 `40bf0b7`）在全量测试 step 的 T48 延迟 hydration 资格检查失败。公开页面要求登录，匿名日志 API 返回 403；这里只记录可验证的失败 step/测试标识，不扩写未读取的原始日志。
 - 判断根因：Windows 并行 Chrome fixture 负载下，页面 150ms hydration 后仅允许 2 秒的测试观察预算不稳定；生产资格检查仍为 15 秒。
 - 修复：`tests/manager/server.test.ts` 仅把 T48 测试预算调整为 5 秒；本机 `npm run build && node --test dist/tests/manager/server.test.js` 为 7/7。包含修复的最新 run 必须重新验证，旧失败 run 不得复用。
+
+## 2026-08-04 0.2.8 最新提交绿色证据
+
+- 提交 `b8c4e5dcbf9bfd416662794a222e657f86532ead` 对应 run `30837899530` / job `91767462635`，状态 `completed/success`：<https://github.com/zmjza/gpt-web-image/actions/runs/30837899530>。
+- 已通过 GitHub Actions 连接器读取完整 job 日志。环境为 Windows Server 2025、Node `v22.23.1`、npm `10.9.8`，checkout 工作目录为 `D:\a\gpt-web-image\gpt-web-image`；`npm ci` 显示 `found 0 vulnerabilities`，typecheck、全量 `npm test`（124/124，0 fail）和 build 均成功，Chrome 探测成功，失败诊断上传按条件跳过。
+- 该 run 只证明 Windows CI/夹具和跨平台代码门禁，不证明真实 ChatGPT、macOS 真机或 Windows x64 用户验收；T42 仍未执行。
