@@ -5,7 +5,7 @@
 - 修复真实 ChatGPT 中文账户入口通过角色语义、`aria-label` 或无空格本地化文本暴露时的 Plus/Pro/Go 会员识别。
 - 管理页面资格检查现在等待稳定 composer；生图控件暂未完成 hydration 时不再把已识别的合格会员误判为不合格。
 - 增加魏邦 Plus、里燃未登录和延迟 hydration 的回归测试，并保留未登录/验证/技术失败的启用阻止边界。
-- 记录真实连续修改在 `SUBMISSION_UNCERTAIN` 后只读确认并安全恢复的证据；本版未发布，最终 Windows CI、Windows x64 用户验收和 T42 发布门禁仍未执行。
+- 记录真实连续修改在 `SUBMISSION_UNCERTAIN` 后只读确认并安全恢复的证据；本版未发布，Windows x64 用户验收和 T42 发布门禁仍未执行。提交 `f7cf134a2bd7c0d410b31dd154ba98109d949b6f` 对应 Windows Actions run `30821377390` 已绿色。
 
 ## 0.2.5 - 2026-08-03
 
