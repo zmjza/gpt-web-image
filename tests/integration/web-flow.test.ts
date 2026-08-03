@@ -39,7 +39,9 @@ test("T37 controlled browser fixture proves queued -> progressive images -> comp
     await page.goto(`${fixture.url}/?scenario=success&count=2&queueDelay=3000`);
     const layout = await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-flow-")), new Date("2026-07-30T00:00:00Z"), "fixture_task");
     const observed: string[] = [];
-    const result = await runWebImageFlow({
+    let resolveSubmission!: () => void;
+    const submissionConfirmed = new Promise<void>((resolve) => { resolveSubmission = resolve; });
+    const flowPromise = runWebImageFlow({
       page,
       prompt: "生成两张图",
       targetCount: 2,
@@ -47,9 +49,16 @@ test("T37 controlled browser fixture proves queued -> progressive images -> comp
       stabilityWindowMs: 20,
       pollIntervalMs: 20,
       timeoutMs: 8000,
-      onSubmissionConfirmed: () => new Promise((resolve) => setTimeout(resolve, 75)),
+      onSubmissionConfirmed: () => {
+        resolveSubmission();
+        return new Promise((resolve) => setTimeout(resolve, 75));
+      },
       onState: (state) => observed.push(state)
     });
+    await submissionConfirmed;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    assert.equal(await page.locator('article[data-message-author-role="assistant"]').last().locator("img").count(), 0);
+    const result = await flowPromise;
     assert.equal(result.results.length, 2);
     assert.notEqual(result.results[0]?.sha256, result.results[1]?.sha256);
     assert.ok(observed.includes("queued"));

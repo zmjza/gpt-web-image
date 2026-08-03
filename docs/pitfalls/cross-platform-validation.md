@@ -112,6 +112,22 @@
 
 **适用范围**：跨平台浏览器夹具、排队/生成瞬态状态、Windows CI 和所有依赖时序的集成测试。
 
+## queueDelay 必须覆盖图片创建定时器
+
+**现象**：提交 `8f8d342` 的 Windows Actions run `30827418540` / job `91732507425` 只有 T37 排队/逐图夹具失败，122/123 测试通过；本机原测试可能通过但没有稳定证明排队窗口。
+
+**根因**：夹具把 `queueDelay` 仅用于 `queued -> generating` 状态切换，图片仍按固定的 `80 * i` 毫秒创建；当队列窗口大于图片延时，首图会提前出现并把助手状态改为 `generating`，Windows 调度更容易让轮询错过 `queued`。
+
+**正确做法**：图片创建时间使用 `queueDelay + 80 * i`，使排队窗口覆盖首图；回归测试在提交确认后等待 500ms 并断言尚无图片，同时继续断言 `queued`、`generating`、`image_ready` 和成功终态。不要改生产网页状态机来适配夹具。
+
+**验证方式**：修复后本机 T37、`npm test` 123/123、`npm run test:integration` 12/12、`npm run typecheck`、`npm run build`、`npm audit --registry=https://registry.npmjs.org --audit-level=high` 和 `git diff --check -- .` 通过；必须等待包含修复提交的最新 Windows Actions 绿色结果并记录运行号。
+
+**禁止事项**：不得删除 `queued` 断言、只增加无关固定 sleep、把本地夹具通过写成真实 ChatGPT 通过，或复用失败 run 作为新提交证据。
+
+**相关文件或命令**：`tests/fixtures/chatgpt-page/index.html`、`tests/integration/web-flow.test.ts`、`.github/workflows/windows.yml`、Windows Actions run `30827418540`。
+
+**适用范围**：所有依赖排队窗口、逐图出现和跨平台浏览器调度的夹具测试。
+
 ## CLI 版本输出不能维护独立硬编码值
 
 **现象**：项目版本已从 `0.1.1` 递增到 `0.2.1`，但 `gpt-web-image --version` 仍输出 `0.1.1`，原测试也把旧值写死后继续通过。

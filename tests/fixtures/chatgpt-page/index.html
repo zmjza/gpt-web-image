@@ -78,7 +78,7 @@
             : `<img src="/image.png?id=${i}" data-result-id="result-${i}" width="1" height="1" alt="结果 ${i}"><a role="button" data-result-id="result-${i}" aria-label="Download image ${i}" download="result-${i}.png" href="/image.png?id=${i}">下载</a>`;
           assistant.appendChild(figure);
           assistant.dataset.state = i === count ? 'complete' : 'generating';
-        }, 80 * i);
+        }, queueDelay + (80 * i));
       }
     });
   </script>
