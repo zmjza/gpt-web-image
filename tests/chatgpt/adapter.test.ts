@@ -43,6 +43,7 @@ test("T22 classifies confirmed, definitely absent and uncertain submissions with
   const prepared = prepareSubmission("画一张海报", 4, ["old"]);
   assert.ok(prepared.attemptId);
   assert.equal(confirmSubmission(prepared, { userMessages: ["old", "画一张海报"], composerEmpty: true }), "confirmed");
+  assert.equal(confirmSubmission(prepared, { userMessages: ["old", "你说：画一张海报展开收起"], composerEmpty: true }), "confirmed");
   assert.equal(confirmSubmission(prepared, { userMessages: ["old"], composerEmpty: true, conversationCreated: true }), "confirmed");
   assert.equal(confirmSubmission(prepared, { userMessages: ["old"], composerEmpty: false, clickFailedBeforeDispatch: true }), "not_submitted");
   assert.equal(confirmSubmission(prepared, { userMessages: ["old"], composerEmpty: true }), "uncertain");
