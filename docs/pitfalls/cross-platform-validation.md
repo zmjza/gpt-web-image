@@ -159,3 +159,19 @@
 **相关文件或命令**：`src/cli.ts`、`src/chatgpt/web-flow.ts`、`src/persistence/recover.ts`、`tests/integration/web-flow.test.ts`。
 
 **适用范围**：提交后中断恢复、登录接管后的继续观察、逐图下载和 JSONL 实时回显。
+
+## 延迟 hydration 的资格夹具预算必须覆盖 Windows 并行负载
+
+**现象**：提交 `40bf0b7` 的 Windows Actions run `30834139133` 在 T48 `manager eligibility waits for the hydrated composer before reading plan signals` 失败；页面在 150ms 后注入 composer，但 2 秒测试预算在 Windows 并行 Chrome fixture 负载下偶发耗尽。公开 job 页面要求登录，匿名日志 API 返回 403，原始逐行日志未读取。
+
+**根因**：这是基于测试与公开失败标识的判断，信息不全，待人工补充原始日志；当前证据表明测试观察预算小于 Windows runner 的调度抖动，而不是生产会员识别逻辑变化。
+
+**正确做法**：仅扩大 T48 测试的有界观察预算到 5 秒，继续等待稳定 composer 并保留登录/会员断言；生产默认 15 秒资格检查不因夹具失败而放宽。每次修复后必须在最新提交对应的 Windows Actions 中复验。
+
+**验证方式**：运行 `npm run build && node --test dist/tests/manager/server.test.js`，确认 7/7；随后等待当前提交的 Windows CI 全量测试和 build 绿色。不得把旧 run `30833579612` 或失败 run `30834139133` 当作修复后的证据。
+
+**禁止事项**：不得删除 hydration 等待或会员断言，不得用无限等待、跳过 T48 或修改生产资格门禁掩盖跨平台时序问题，不得把匿名 API 的 step 摘要写成完整日志。
+
+**相关文件或命令**：`tests/manager/server.test.ts`、`src/manager/server.ts`、`src/browser/membership.ts`、`.github/workflows/windows.yml`、`npm run build`、`node --test dist/tests/manager/server.test.js`。
+
+**适用范围**：管理页面登录/会员资格检查、延迟 composer hydration、Windows 并行 Chrome fixture 和所有跨平台定时测试。

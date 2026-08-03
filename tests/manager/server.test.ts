@@ -40,7 +40,9 @@ test("T48 manager eligibility waits for the hydrated composer before reading pla
     const page = await browser.newPage();
     await page.setContent("<main id=app></main>");
     setTimeout(() => void page.evaluate(() => { document.querySelector("#app")!.innerHTML = '<div role="button" aria-label="bang wei Plus，打开个人资料菜单">bang weiPlus</div><div contenteditable="true" aria-label="与 ChatGPT 聊天"></div>'; }), 150);
-    const result = await readBrowserEligibility(page, 2_000);
+    // The test runs alongside other Chrome fixtures on Windows; keep the hydration
+    // assertion while giving the page a bounded but realistic scheduling budget.
+    const result = await readBrowserEligibility(page, 5_000);
     assert.equal(result.login, "logged_in");
     assert.equal(result.membership, "plus");
     assert.equal(result.eligible, true);
