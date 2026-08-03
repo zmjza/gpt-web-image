@@ -63,6 +63,22 @@ test("T52 preserves the Stitch visual asset as a local source reference", () => 
   assert.match(html, /assets\/background\.png/);
 });
 
+test("T52 tablet navigation keeps labels readable in the compact header", () => {
+  const css = readFileSync("src/manager/public/styles.css", "utf8");
+
+  assert.match(css, /@media \(min-width: 768px\) and \(max-width: 1023px\)/);
+  assert.match(
+    css,
+    /@media \(min-width: 768px\) and \(max-width: 1023px\)[\s\S]*?nav \.nav-link[\s\S]*?white-space:\s*nowrap/,
+    "tablet navigation labels must not wrap vertically"
+  );
+  assert.match(
+    css,
+    /@media \(min-width: 768px\) and \(max-width: 1023px\)[\s\S]*?nav \.flex\.items-center\.space-x-4\s*>\s*button\.bg-mint-500[\s\S]*?font-size:\s*0/,
+    "tablet refresh control must use a stable icon-only footprint"
+  );
+});
+
 test("T62-T77 image UI preserves single-Profile request isolation and has no delete operation", () => {
   const source = readFileSync("src/manager/public/app.js", "utf8");
   assert.match(source, /AbortController/);

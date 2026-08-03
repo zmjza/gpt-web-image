@@ -111,3 +111,19 @@
 **相关文件或命令**：`src/manager/public/app.js`、`tests/manager/ui-shell.test.ts`、`node --test dist/tests/manager/ui-shell.test.js`、`.playwright/real-image-manager-combination.png`。
 
 **适用范围**：图片管理筛选、目录迁移、Profile 表单和所有使用原生 HTML 表单的浏览器自动化验收。
+
+## 平板顶部导航不能沿用桌面 flex 收缩策略
+
+**现象**：768×900 视口下顶部导航的中文按钮逐字竖排，导航栏高度被内容撑大；页面没有横向溢出，容易被只检查 `scrollWidth` 的验收漏掉。
+
+**根因**：`md:flex` 在 768px 生效后，品牌、四个导航按钮和右侧工具区仍在同一行争抢有限宽度。默认 `flex-shrink` 允许按钮宽度缩到单个词无法容纳的程度，而中文自然换行会把高度撑开。
+
+**正确做法**：在 768–1023px 单独收紧导航间距和按钮内边距；导航标签使用 `white-space: nowrap`；刷新操作收敛为固定 40×40 图标按钮；隐藏低优先级账户工具但保留必要入口。修复后同时检查按钮单行、高度、边界和 1280/390 视口回归。
+
+**验证方式**：运行 `node --test dist/tests/manager/ui-shell.test.js`；使用真实管理页面在 1280×1024、768×900、390×844 截图，检查 `scrollWidth === clientWidth`、导航按钮文本行数/尺寸、控制台错误和网络失败数。
+
+**禁止事项**：不得只凭桌面截图声明响应式完成；不得通过改业务数据、删除导航项或重写整页来掩盖平板 flex 约束问题。
+
+**相关文件或命令**：`src/manager/public/styles.css`、`tests/manager/ui-shell.test.ts`、`npm run preview:manager`、`.playwright/manager-tablet-2026-08-04-fixed.png`。
+
+**适用范围**：所有从 Stitch UI 壳承接的平板顶部导航和共享管理页面。

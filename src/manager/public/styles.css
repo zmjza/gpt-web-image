@@ -95,6 +95,52 @@
 [data-manager-shell] .image-detail-fields span { color: #6b7280; }
 [data-manager-shell] .image-detail-fields strong { color: #111827; font-weight: 600; }
 
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Keep the desktop header usable at tablet widths without changing its hierarchy. */
+  [data-manager-shell] nav .flex.justify-between.items-center.h-16 { gap: 8px; }
+  [data-manager-shell] nav .flex.justify-between.items-center.h-16 > .flex-shrink-0 {
+    min-width: 0;
+    flex: 0 1 auto;
+  }
+  [data-manager-shell] nav .hidden.md\:flex {
+    min-width: 0;
+    flex: 1 1 auto;
+    gap: 2px;
+  }
+  [data-manager-shell] nav .nav-link {
+    min-width: 0;
+    padding-left: 8px;
+    padding-right: 8px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  [data-manager-shell] nav .nav-link i { margin-right: 4px !important; }
+  [data-manager-shell] nav .flex.items-center.space-x-4 {
+    flex: 0 0 auto;
+    gap: 6px;
+  }
+  [data-manager-shell] nav .flex.items-center.space-x-4 > button.bg-mint-500 {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+    flex: 0 0 40px;
+    font-size: 0;
+  }
+  [data-manager-shell] nav .flex.items-center.space-x-4 > button.bg-mint-500 i {
+    margin-right: 0;
+    font-size: 14px;
+  }
+  [data-manager-shell] nav .flex.items-center.space-x-4 > .flex.items-center.space-x-2 {
+    gap: 0;
+    padding-left: 0;
+    border-left: 0;
+  }
+  [data-manager-shell] nav .flex.items-center.space-x-4 > .flex.items-center.space-x-2 > button:nth-child(n + 2) {
+    display: none;
+  }
+}
+
 @media (max-width: 767px) {
   [data-manager-shell] { padding-bottom: 5.5rem !important; }
   [data-manager-shell] nav .flex.justify-between.items-center.h-16 { gap: 12px; }
