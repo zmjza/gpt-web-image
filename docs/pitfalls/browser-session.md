@@ -95,3 +95,19 @@
 **相关文件或命令**：`src/browser/membership.ts`、`src/manager/server.ts`、`tests/browser/membership-lease.test.ts`、`tests/manager/server.test.ts`、`node dist/src/cli.js doctor --json`。
 
 **适用范围**：macOS ARM64 和 Windows x64 的 Profile 资格检测、管理页面启用前检查及登录态 hydration 延迟场景。
+
+## 中断后项目锁必须按归属与 PID 校验回收
+
+**现象**：任务进程在专用 Chrome 已启动、但网页提交尚未建立 `attemptId` 时被中止，Profile 锁和 BrowserLease 文件可能仍存在；此时专用 Chrome 已退出，锁内 PID 也已失效。
+
+**根因**：进程被外部信号终止时，正常 `finally` 清理不一定执行；锁文件是持久化保护证据，不能仅凭“文件存在”或“看起来是旧的”直接删除。
+
+**正确做法**：先检查专用 Profile 参数对应的 Chrome 进程确实不存在，再解析锁记录，确认 schema、owner、Profile 路径、任务归属和 PID 已退出；通过项目锁/租约实现执行一次受控 acquire/release 回收，最后用 `doctor --json` 和文件检查确认锁消失、Profile 内容未被删除或重建。
+
+**验证方式**：真实任务 `task_msdc213z_k2pwi2ti` 中断时 `attemptId/clickedAt/confirmedAt` 均为空；`resume` 返回 `resume_before_submit` 且未执行网页写操作。仅在确认 PID 已退出后回收锁，随后 `doctor --json` 仍报告专用 Profile 可写和 `retentionPolicy=never-auto-delete`。
+
+**禁止事项**：不得按文件名批量删除锁；不得结束用户日常 Chrome；不得在 PID 仍存活、Profile 路径不匹配或归属无法验证时回收；不得把锁清理误写成任务已提交或图片生成成功。
+
+**相关文件或命令**：`src/browser/profile-lock.ts`、`src/browser/browser-lease.ts`、`src/cli.ts`、`node dist/src/cli.js resume`、`node dist/src/cli.js doctor --json`、`ps -axo pid,ppid,command`。
+
+**适用范围**：macOS ARM64 和 Windows x64 的提交前/提交后中断、恢复、取消和专用 Chrome 生命周期。
