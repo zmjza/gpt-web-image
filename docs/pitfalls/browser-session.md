@@ -79,3 +79,19 @@
 **相关文件或命令**：`src/chatgpt/web-flow.ts`、`src/browser/profile.ts`、`src/cli.ts`、`node dist/src/cli.js resume`。
 
 **适用范围**：真实 ChatGPT 提交确认、连续修改、提交后中断恢复和 Profile 重启。
+
+## 会员检测不能依赖单一生图控件或英文账户入口
+
+**现象**：真实 ChatGPT 中文页面已经登录 Plus，但管理页面把 Profile 判为技术失败或不合格；账户入口只出现在带本地化 `aria-label` 的角色元素中，生图控件还未完成 hydration 时暂时不存在。
+
+**根因**：页面不同阶段和语言环境下，会员等级可能通过账户菜单文本、可访问名称或拼接后的本地化文本暴露；将“当前没有生图按钮”当作能力为 false，会把暂态 DOM 缺失误判为会员不合格。
+
+**正确做法**：先等待稳定、可交互的 composer，再读取可见 `role`/`aria-label`/`title` 账户入口和菜单文本；支持 Plus、Pro、Go 的本地化及无空格信号。生图控件未出现时记录未知能力，不覆盖已经可靠识别的合格会员。只有明确未登录、验证接管、其他会员或技术检测失败才禁止启用。
+
+**验证方式**：真实魏邦专用 Profile 返回 `logged_in / plus / eligible=true`；真实里燃 Profile 返回 `needs_login`，启用返回 `LOGIN_REQUIRED` 且 active 不变。会员回归测试 6/6、管理服务延迟 hydration 回归 7/7；检测结束后专用 Chrome 进程和 lease 锁均为 0。不要在文档或日志中记录认证数据。
+
+**禁止事项**：不得只用英文 CSS 文本、单一按钮选择器或固定延时判断会员；不得因为暂时找不到生图控件否定 Plus/Pro/Go；不得以普通 Chrome 登录状态替代受管 Profile；不得读取密码、Cookie、Token 或验证码。
+
+**相关文件或命令**：`src/browser/membership.ts`、`src/manager/server.ts`、`tests/browser/membership-lease.test.ts`、`tests/manager/server.test.ts`、`node dist/src/cli.js doctor --json`。
+
+**适用范围**：macOS ARM64 和 Windows x64 的 Profile 资格检测、管理页面启用前检查及登录态 hydration 延迟场景。

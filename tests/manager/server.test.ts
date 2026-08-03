@@ -4,9 +4,11 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import sharp from "sharp";
+import { chromium } from "playwright-core";
 import { ProfileRegistryStore } from "../../src/profiles/registry.js";
 import { ProfileManager } from "../../src/profiles/manager.js";
-import { startManagerServer, type ManagerBrowserController } from "../../src/manager/server.js";
+import { inspectChrome } from "../../src/platform/chrome.js";
+import { readBrowserEligibility, startManagerServer, type ManagerBrowserController } from "../../src/manager/server.js";
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "gpt-web-image-manager-api-"));
@@ -30,6 +32,22 @@ async function json(baseUrl: string, path: string, init?: RequestInit) {
   const body = await response.json().catch(() => null);
   return { response, body };
 }
+
+test("T48 manager eligibility waits for the hydrated composer before reading plan signals", { skip: !inspectChrome().available }, async () => {
+  const chrome = inspectChrome();
+  const browser = await chromium.launch({ executablePath: chrome.path as string, headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent("<main id=app></main>");
+    setTimeout(() => void page.evaluate(() => { document.querySelector("#app")!.innerHTML = '<div role="button" aria-label="bang wei Plus，打开个人资料菜单">bang weiPlus</div><div contenteditable="true" aria-label="与 ChatGPT 聊天"></div>'; }), 150);
+    const result = await readBrowserEligibility(page, 2_000);
+    assert.equal(result.login, "logged_in");
+    assert.equal(result.membership, "plus");
+    assert.equal(result.eligible, true);
+  } finally {
+    await browser.close();
+  }
+});
 
 test("T51 listens only on loopback and exposes schema-limited Profile lifecycle APIs", async () => {
   const { server, baseUrl } = await fixture();

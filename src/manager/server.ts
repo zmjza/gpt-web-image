@@ -7,11 +7,12 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AddressInfo } from "node:net";
+import type { Page } from "playwright-core";
 import { loadConfig } from "../config/load.js";
 import { inspectChrome } from "../platform/chrome.js";
 import { launchProfile, type BrowserSession } from "../browser/profile.js";
 import { BrowserLease } from "../browser/browser-lease.js";
-import { classifyLoginPage, readLoginPageSignals } from "../browser/login.js";
+import { classifyLoginPage, readLoginPageSignals, waitForAutomatedComposer } from "../browser/login.js";
 import { evaluateEligibility, readMembershipSignals } from "../browser/membership.js";
 import { scanDefaultRoot } from "../profiles/directories.js";
 import { changeDefaultRoot, planDefaultRootChange, type DirectoryChangeMode } from "../profiles/migration.js";
@@ -57,6 +58,21 @@ export interface RunningManagerServer {
   port: number;
   url: string;
   close(): Promise<void>;
+}
+
+export async function readBrowserEligibility(page: Page, timeoutMs = 15_000): Promise<EligibilityResult> {
+  try {
+    await waitForAutomatedComposer(page, timeoutMs);
+  } catch {
+    const login = classifyLoginPage(await readLoginPageSignals(page));
+    return evaluateEligibility({
+      login: login === "needs_login" ? "needs_login" : login === "needs_human_verification" ? "verification_required" : "technical_failure",
+      visibleTexts: [],
+      imageGenerationAvailable: null
+    });
+  }
+  const membership = await readMembershipSignals(page);
+  return evaluateEligibility({ ...membership, login: "logged_in" });
 }
 
 class HttpError extends Error {
@@ -152,12 +168,7 @@ function createBrowserController(runtime: ProfileRuntime, configuredPath?: strin
     finally { await session?.close(); await lease.release(); }
   }
   return {
-    check: (profile) => withTemporarySession(profile, async (session) => {
-      const login = classifyLoginPage(await readLoginPageSignals(session.page));
-      if (login !== "ready") return evaluateEligibility({ login: login === "needs_login" ? "needs_login" : login === "needs_human_verification" ? "verification_required" : "technical_failure", visibleTexts: [], imageGenerationAvailable: null });
-      const membership = await readMembershipSignals(session.page);
-      return evaluateEligibility({ ...membership, login: "logged_in" });
-    }),
+    check: (profile) => withTemporarySession(profile, (session) => readBrowserEligibility(session.page)),
     open: async (profile) => {
       if (current) { if (current.profileId === profile.profileId) return; throw new Error("BROWSER_BUSY"); }
       if (!chrome.path) throw new Error("CHROME_UNAVAILABLE");
