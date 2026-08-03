@@ -120,7 +120,7 @@
 
 **正确做法**：图片创建时间使用 `queueDelay + 80 * i`，使排队窗口覆盖首图；回归测试在提交确认后等待 500ms 并断言尚无图片，同时继续断言 `queued`、`generating`、`image_ready` 和成功终态。不要改生产网页状态机来适配夹具。
 
-**验证方式**：修复后本机 T37、`npm test` 123/123、`npm run test:integration` 12/12、`npm run typecheck`、`npm run build`、`npm audit --registry=https://registry.npmjs.org --audit-level=high` 和 `git diff --check -- .` 通过；必须等待包含修复提交的最新 Windows Actions 绿色结果并记录运行号。
+**验证方式**：修复后本机 T37、`npm test` 123/123、`npm run test:integration` 12/12、`npm run typecheck`、`npm run build`、`npm audit --registry=https://registry.npmjs.org --audit-level=high` 和 `git diff --check -- .` 通过；Windows Actions run `30828797891` / job `91737204987` 已在修复提交上全步骤绿色。
 
 **禁止事项**：不得删除 `queued` 断言、只增加无关固定 sleep、把本地夹具通过写成真实 ChatGPT 通过，或复用失败 run 作为新提交证据。
 
