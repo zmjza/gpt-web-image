@@ -69,6 +69,7 @@ test("T62-T77 image UI preserves single-Profile request isolation and has no del
   assert.match(source, /imageRequestVersion/);
   assert.match(source, /\/images\/scan/);
   assert.match(source, /generatedAt_desc/);
+  assert.match(source, /<button type="submit"[^>]*>应用筛选<\/button>/);
   assert.doesNotMatch(source, /method\s*:\s*["']DELETE["'][\s\S]{0,200}images/);
 });
 

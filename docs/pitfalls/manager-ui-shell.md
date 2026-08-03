@@ -95,3 +95,19 @@
 **相关文件或命令**：`src/manager/public/ui-contracts.js`、`src/manager/public/app.js`、`tests/manager/ui-shell.test.ts`、`npm test`。
 
 **适用范围**：图片管理空态、组合筛选、分页结果和所有查询后空结果提示。
+
+## 默认 submit 行为不等于存在 submit 属性
+
+**现象**：图片筛选按钮原本省略 `type` 属性，浏览器仍把它当作 submit；使用 Playwright/CSS 的 `[type=submit]` 定位器时找不到按钮并超时，容易误报“点击后没有图片请求”。
+
+**根因**：HTML 的默认按钮类型是运行时属性 `button.type === "submit"`，但省略属性时 `getAttribute("type")` 为空，属性选择器不会命中；验收脚本未真正触发提交事件。
+
+**正确做法**：业务表单按钮显式写 `type="submit"`，自动化优先按可见角色和按钮名称定位；修改后同时检查原生 `type` 和 DOM 属性，并监听实际列表响应。
+
+**验证方式**：运行 `node --test dist/tests/manager/ui-shell.test.js`；真实管理页面组合筛选返回 HTTP 200 且唯一命中 `1-image-14.png`，按钮 `type` 与 `getAttribute("type")` 均为 `submit`。
+
+**禁止事项**：不得仅因没有观察到 API 请求就认定产品事件链损坏；不得用会匹配不到省略属性的 CSS 选择器作为唯一真实验收依据。
+
+**相关文件或命令**：`src/manager/public/app.js`、`tests/manager/ui-shell.test.ts`、`node --test dist/tests/manager/ui-shell.test.js`、`.playwright/real-image-manager-combination.png`。
+
+**适用范围**：图片管理筛选、目录迁移、Profile 表单和所有使用原生 HTML 表单的浏览器自动化验收。
