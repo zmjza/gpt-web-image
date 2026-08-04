@@ -175,3 +175,19 @@
 **相关文件或命令**：`tests/manager/server.test.ts`、`src/manager/server.ts`、`src/browser/membership.ts`、`.github/workflows/windows.yml`、`npm run build`、`node --test dist/tests/manager/server.test.js`。
 
 **适用范围**：管理页面登录/会员资格检查、延迟 composer hydration、Windows 并行 Chrome fixture 和所有跨平台定时测试。
+
+## macOS Chrome 集成测试不要并行启动多个应用实例
+
+**现象**：本机 macOS 并行运行全量测试时，唯一失败可能是 `T17 closes a dedicated Chrome before immediately reopening the same profile`；AppleScript 返回 `Google Chrome` 应用未运行（`-600`）。单独运行集成套件或串行运行全量测试通过。
+
+**根因**：管理资格测试的 headless Chrome 和网页流程测试的正式 Chrome 共用 macOS 的 Google Chrome 应用身份。不同测试文件并行启动/关闭时，AppleScript 窗口定位可能落在应用生命周期切换的瞬间；这不是 ChatGPT 页面或真实账号失败证据。
+
+**正确做法**：Node 测试脚本统一使用 `--test-concurrency=1`，让 macOS Chrome 生命周期测试串行执行；保留 AppleScript 有界重试和专用 Profile 隔离。生产任务仍由 BrowserLease 保证全局单受控 Chrome，不能通过放宽生产锁来迁就测试。
+
+**验证方式**：`npm test` 和 `npm run test:integration` 必须在 macOS 真实 Chrome 上完整通过；复现时对比并行失败、`node --test --test-concurrency=1` 串行通过和单独集成套件通过。当前串行全量为 130/130。
+
+**禁止事项**：不得把偶发 `-600` 直接写成真实 ChatGPT 失败；不得删除真实 Chrome 集成测试、忽略失败、无限重试或取消 BrowserLease/锁约束。
+
+**相关文件或命令**：`package.json`、`src/browser/profile.ts`、`tests/integration/web-flow.test.ts`、`tests/manager/server.test.ts`、`node --test --test-concurrency=1`。
+
+**适用范围**：macOS Chrome 真实/夹具集成测试、AppleScript 窗口控制、Profile 生命周期和跨平台内部门禁。

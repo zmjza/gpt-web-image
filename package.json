@@ -13,9 +13,9 @@
     "build": "tsc -p tsconfig.json && npm run build:manager",
     "build:manager": "node scripts/copy-manager-assets.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node --test dist/tests/**/*.test.js",
-    "test:unit": "npm run build && node --test dist/tests/**/*.test.js",
-    "test:integration": "npm run build && node --test dist/tests/integration/*.test.js",
+    "test": "npm run build && node --test --test-concurrency=1 dist/tests/**/*.test.js",
+    "test:unit": "npm run build && node --test --test-concurrency=1 dist/tests/**/*.test.js",
+    "test:integration": "npm run build && node --test --test-concurrency=1 dist/tests/integration/*.test.js",
     "preview:manager": "npm run build && node scripts/preview-manager.mjs",
     "install:user": "npm run build && node scripts/install.mjs"
   },

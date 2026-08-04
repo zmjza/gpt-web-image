@@ -46,3 +46,9 @@ CI 不登录真实 ChatGPT，不证明网页真实流程完成。不得把模拟
 
 - 候选提交 `65881f64eb1c6b112d7f7d9036ed6bcdf2072c9e` 对应 run `30838217119` / job `91768543565`，状态 `completed/success`：<https://github.com/zmjza/gpt-web-image/actions/runs/30838217119>。
 - 该候选未改变业务代码；本次运行重新验证 Windows Server 2025、Node `v22.23.1`、npm ci（0 vulnerabilities）、typecheck、124/124 测试和 build。它仍不等同 Windows x64 用户真机验收，T41 待用户反馈，T42 未执行。
+
+## 2026-08-04 0.2.12 当前提交最终证据
+
+- 提交 `2f506f3946fb43c4dfc8911ceb8059884e54553c` 对应 run `30890911224` / job `91932493250`，状态 `completed/success`：<https://github.com/zmjza/gpt-web-image/actions/runs/30890911224>。
+- 已读取完整 job 日志：Windows Server 2025、Node `v22.23.1`、npm `10.9.8`，工作目录 `D:\a\gpt-web-image\gpt-web-image`；`npm ci` 报告 0 vulnerabilities，Chrome 探测、typecheck、全量 `npm test`（130/130，0 fail）和 build 均成功，失败诊断上传按条件跳过。
+- 该 run 覆盖当前 Profile/图片管理、路径、迁移/备份、锁/进程、下载、JSONL、恢复和安全用例，但不包含真实 ChatGPT 登录，不等同 macOS 真机或 Windows x64 用户验收；T42 仍未执行。
