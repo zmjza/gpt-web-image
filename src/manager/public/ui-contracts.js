@@ -9,7 +9,11 @@ export const loginLabels = Object.freeze({
 });
 
 export const membershipLabels = Object.freeze({ plus: "Plus", pro: "Pro", go: "Go", other: "不符合资格", technical_failure: "检测失败" });
-export const browserLabels = Object.freeze({ closed: "未运行", open: "运行中", task_busy: "任务运行中", unknown: "状态未知" });
+export const browserLabels = Object.freeze({ closed: "未运行", open: "运行中", closing: "正在关闭", task_busy: "任务运行中", unknown: "状态未知" });
+
+export const pathLabels = Object.freeze({ ok: "路径正常", missing: "目录不存在", mismatch: "路径标记不一致", not_owned: "非专用目录", unreadable: "目录不可读写" });
+
+export const toastLabels = Object.freeze({ success: "成功", error: "失败", warning: "需要处理", info: "提示" });
 
 const imageFilterFields = Object.freeze([
   "keyword", "status", "format", "orientation", "projectId", "taskId",

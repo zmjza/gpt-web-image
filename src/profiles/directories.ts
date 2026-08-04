@@ -65,7 +65,18 @@ export async function scanDefaultRoot(store: ProfileRegistryStore): Promise<Dire
     discovered.push(discoveredRecord(path, name, marker.createdAt));
   }
   if (discovered.length > 0) {
-    await store.transaction((current) => ({ ...current, profiles: [...current.profiles, ...discovered] }));
+    await store.transaction((current) => {
+      const existingPaths = new Set(current.profiles.map((profile) => resolve(profile.profileDir)));
+      const existingNames = new Set(current.profiles.map((profile) => profile.name));
+      const additions = discovered.filter((profile) => {
+        const path = resolve(profile.profileDir);
+        if (existingPaths.has(path) || existingNames.has(profile.name)) return false;
+        existingPaths.add(path);
+        existingNames.add(profile.name);
+        return true;
+      });
+      return additions.length ? { ...current, profiles: [...current.profiles, ...additions] } : current;
+    });
   }
   return { rootDir, registered, discovered, skipped, scannedAt: new Date().toISOString() };
 }

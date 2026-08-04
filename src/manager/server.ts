@@ -17,7 +17,7 @@ import { evaluateEligibility, readMembershipSignals } from "../browser/membershi
 import { scanDefaultRoot } from "../profiles/directories.js";
 import { changeDefaultRoot, planDefaultRootChange, type DirectoryChangeMode } from "../profiles/migration.js";
 import { createBackup, listBackups, restoreBackup, type BackupRecord } from "../profiles/backup.js";
-import { ProfileManagerError } from "../profiles/manager.js";
+import { inspectProfilePath, ProfileManagerError, type ProfilePathStatus } from "../profiles/manager.js";
 import { openProfileRuntime, type ProfileRuntime } from "../profiles/runtime.js";
 import type { EligibilityResult, ProfileRecord } from "../profiles/types.js";
 import { readImageIndex, writeImageIndex } from "../images/manager-index-store.js";
@@ -126,15 +126,17 @@ function sendJson(response: ServerResponse, status: number, value: unknown): voi
   response.end(body);
 }
 
-function profileView(profile: ProfileRecord): ProfileRecord {
-  return { ...profile };
+type ProfileView = ProfileRecord & { pathStatus: ProfilePathStatus };
+
+async function profileView(profile: ProfileRecord): Promise<ProfileView> {
+  return { ...profile, pathStatus: await inspectProfilePath(profile.profileDir) };
 }
 
 function errorStatus(code: string): number {
   if (["PROFILE_NOT_FOUND", "IMAGE_NOT_FOUND", "BACKUP_NOT_FOUND"].includes(code)) return 404;
   if (["LOGIN_REQUIRED", "VERIFICATION_REQUIRED"].includes(code)) return 409;
-  if (["ACTIVE_PROFILE", "PROFILE_BUSY", "BROWSER_BUSY", "BROWSER_LEASED", "PATH_CONFLICT", "NAME_CONFLICT", "DELETE_CONFIRMATION_REQUIRED", "DELETE_CONFIRMATION_INVALID", "DIRECTORY_CONFLICT", "INDEX_BUSY"].includes(code)) return 409;
-  if (["NOT_OWNED", "MEMBERSHIP_INELIGIBLE", "ELIGIBILITY_CHECK_FAILED", "PROFILE_SCOPE_VIOLATION", "IMAGE_MISSING", "IMAGE_CORRUPT", "IMAGE_UNAVAILABLE", "BACKUP_INVALID"].includes(code)) return 422;
+  if (["ACTIVE_PROFILE", "PROFILE_BUSY", "BROWSER_BUSY", "BROWSER_LEASED", "NOT_PROJECT_BROWSER", "PATH_CONFLICT", "NAME_CONFLICT", "DELETE_CONFIRMATION_REQUIRED", "DELETE_CONFIRMATION_INVALID", "DIRECTORY_CONFLICT", "INDEX_BUSY"].includes(code)) return 409;
+  if (["NOT_OWNED", "PROFILE_PATH_INVALID", "MEMBERSHIP_INELIGIBLE", "ELIGIBILITY_CHECK_FAILED", "PROFILE_SCOPE_VIOLATION", "IMAGE_MISSING", "IMAGE_CORRUPT", "IMAGE_UNAVAILABLE", "BACKUP_INVALID"].includes(code)) return 422;
   return 400;
 }
 
@@ -148,7 +150,7 @@ function errorCode(error: unknown): string {
 function safeError(error: unknown): { status: number; code: string; message: string } {
   if (error instanceof HttpError) return { status: error.status, code: error.code, message: error.message };
   const code = errorCode(error);
-  const known = new Set(["PROFILE_NOT_FOUND", "NOT_OWNED", "PATH_CONFLICT", "NAME_CONFLICT", "LOGIN_REQUIRED", "VERIFICATION_REQUIRED", "MEMBERSHIP_INELIGIBLE", "ELIGIBILITY_CHECK_FAILED", "PROFILE_BUSY", "ACTIVE_PROFILE", "PROFILE_DELETE_FAILED", "DELETE_CONFIRMATION_REQUIRED", "DELETE_CONFIRMATION_INVALID", "DELETE_CONFIRMATION_FORBIDDEN", "DIRECTORY_CONFLICT", "DIRECTORY_UNCHANGED", "MIGRATION_VERIFY_FAILED", "BACKUP_INVALID", "BACKUP_NOT_FOUND", "BROWSER_BUSY", "BROWSER_LEASED", "CHROME_UNAVAILABLE", "PROFILE_SCOPE_VIOLATION", "DIRECTORY_MISSING", "PERMISSION_DENIED", "SCAN_FAILED", "INDEX_READ_FAILED", "INDEX_INVALID", "IMAGE_NOT_FOUND", "IMAGE_MISSING", "IMAGE_CORRUPT", "IMAGE_UNAVAILABLE"]);
+  const known = new Set(["PROFILE_NOT_FOUND", "NOT_OWNED", "PROFILE_PATH_INVALID", "PATH_CONFLICT", "NAME_CONFLICT", "LOGIN_REQUIRED", "VERIFICATION_REQUIRED", "MEMBERSHIP_INELIGIBLE", "ELIGIBILITY_CHECK_FAILED", "PROFILE_BUSY", "ACTIVE_PROFILE", "PROFILE_DELETE_FAILED", "DELETE_CONFIRMATION_REQUIRED", "DELETE_CONFIRMATION_INVALID", "DELETE_CONFIRMATION_FORBIDDEN", "DIRECTORY_CONFLICT", "DIRECTORY_UNCHANGED", "MIGRATION_VERIFY_FAILED", "BACKUP_INVALID", "BACKUP_NOT_FOUND", "BROWSER_BUSY", "BROWSER_LEASED", "CHROME_UNAVAILABLE", "NOT_PROJECT_BROWSER", "PROFILE_SCOPE_VIOLATION", "DIRECTORY_MISSING", "PERMISSION_DENIED", "SCAN_FAILED", "INDEX_READ_FAILED", "INDEX_INVALID", "IMAGE_NOT_FOUND", "IMAGE_MISSING", "IMAGE_CORRUPT", "IMAGE_UNAVAILABLE"]);
   return { status: known.has(code) ? errorStatus(code) : 500, code: known.has(code) ? code : "INTERNAL_ERROR", message: known.has(code) ? code : "本地服务执行失败" };
 }
 
@@ -179,9 +181,10 @@ function createBrowserController(runtime: ProfileRuntime, configuredPath?: strin
     },
     close: async (profile) => {
       if (!current || current.profileId !== profile.profileId) throw new Error("NOT_PROJECT_BROWSER");
-      const owned = current; current = null; await owned.session.close(); await owned.lease.release();
+      const owned = current; current = null;
+      try { await owned.session.close(); } finally { await owned.lease.release(); }
     },
-    closeAll: async () => { if (!current) return; const owned = current; current = null; await owned.session.close(); await owned.lease.release(); }
+    closeAll: async () => { if (!current) return; const owned = current; current = null; try { await owned.session.close(); } finally { await owned.lease.release(); } }
   };
 }
 
@@ -244,22 +247,22 @@ export async function startManagerServer(options: StartManagerServerOptions): Pr
     if (method === "GET" && path === "/profiles") {
       const scan = await scanDefaultRoot(runtime.store);
       const registry = await runtime.store.read();
-      sendJson(response, 200, { schemaVersion: "1", activeProfileId: registry.activeProfileId, profiles: registry.profiles.map(profileView), scan: { discovered: scan.discovered.length, skipped: scan.skipped.length, scannedAt: scan.scannedAt } }); return true;
+      sendJson(response, 200, { schemaVersion: "1", activeProfileId: registry.activeProfileId, profiles: await Promise.all(registry.profiles.map(profileView)), scan: { discovered: scan.discovered.length, skipped: scan.skipped.length, scannedAt: scan.scannedAt } }); return true;
     }
     if (method === "POST" && path === "/profiles") {
       const body = objectBody(await readJson(request), ["name", "accountLabel", "notes"]);
       const profile = await runtime.manager.create({ name: requiredString(body.name, "name"), accountLabel: nullableString(body.accountLabel, "accountLabel"), notes: nullableString(body.notes, "notes") });
-      sendJson(response, 201, profileView(profile)); return true;
+      sendJson(response, 201, await profileView(profile)); return true;
     }
     if (method === "POST" && path === "/profiles/import") {
       const body = objectBody(await readJson(request), ["name", "accountLabel", "notes", "profileDir"]);
       const profile = await runtime.manager.importProfile({ name: requiredString(body.name, "name"), accountLabel: nullableString(body.accountLabel, "accountLabel"), notes: nullableString(body.notes, "notes"), profileDir: requiredString(body.profileDir, "profileDir") });
-      sendJson(response, 201, profileView(profile)); return true;
+      sendJson(response, 201, await profileView(profile)); return true;
     }
     const profileMatch = path.match(/^\/profiles\/([^/]+)$/);
     if (profileMatch) {
       const profileId = validateId(decodeURIComponent(profileMatch[1]!), PROFILE_ID, "profileId");
-      if (method === "PATCH") { const body = objectBody(await readJson(request), ["name", "accountLabel", "notes"]); const profile = await runtime.manager.update(profileId, { ...(body.name !== undefined ? { name: requiredString(body.name, "name") } : {}), ...(body.accountLabel !== undefined ? { accountLabel: nullableString(body.accountLabel, "accountLabel") } : {}), ...(body.notes !== undefined ? { notes: nullableString(body.notes, "notes") } : {}) }); sendJson(response, 200, profileView(profile)); return true; }
+      if (method === "PATCH") { const body = objectBody(await readJson(request), ["name", "accountLabel", "notes"]); const profile = await runtime.manager.update(profileId, { ...(body.name !== undefined ? { name: requiredString(body.name, "name") } : {}), ...(body.accountLabel !== undefined ? { accountLabel: nullableString(body.accountLabel, "accountLabel") } : {}), ...(body.notes !== undefined ? { notes: nullableString(body.notes, "notes") } : {}) }); sendJson(response, 200, await profileView(profile)); return true; }
       if (method === "DELETE") { await runtime.manager.deleteProfile(profileId, typeof request.headers["x-delete-confirmation"] === "string" ? request.headers["x-delete-confirmation"] : null); response.writeHead(204).end(); return true; }
     }
     const profileAction = path.match(/^\/profiles\/([^/]+)\/(activate|check|open|close|delete-confirmation|backups)$/);
@@ -267,10 +270,39 @@ export async function startManagerServer(options: StartManagerServerOptions): Pr
       const profileId = validateId(decodeURIComponent(profileAction[1]!), PROFILE_ID, "profileId");
       const action = profileAction[2]!;
       const profile = await runtime.manager.get(profileId);
-      if (action === "check") { const result = await browser.check(profile); const updated = await runtime.manager.recordEligibility(profileId, result); sendJson(response, 200, profileView(updated)); return true; }
-      if (action === "activate") { const updated = await runtime.manager.activate(profileId, (selected) => browser.check(selected)); sendJson(response, 200, profileView(updated)); return true; }
-      if (action === "open") { await browser.open(profile); const updated = await runtime.manager.setBrowserStatus(profileId, "open"); sendJson(response, 200, profileView(updated)); return true; }
-      if (action === "close") { await browser.close(profile); const updated = await runtime.manager.setBrowserStatus(profileId, "closed"); sendJson(response, 200, profileView(updated)); return true; }
+      const pathStatus = await inspectProfilePath(profile.profileDir);
+      if (["check", "activate", "open", "close"].includes(action) && pathStatus !== "ok") throw new ProfileManagerError("PROFILE_PATH_INVALID", `Profile 路径状态：${pathStatus}`);
+      if (action === "check") { const result = await browser.check(profile); const updated = await runtime.manager.recordEligibility(profileId, result); sendJson(response, 200, await profileView(updated)); return true; }
+      if (action === "activate") {
+        const updated = await runtime.manager.activate(profileId, (selected) => browser.check(selected), async (previous) => {
+          if (!previous) return;
+          if (previous.taskBusy || previous.browserStatus === "task_busy") throw new ProfileManagerError("PROFILE_BUSY");
+          if (previous.browserStatus !== "open" && previous.browserStatus !== "closing") return;
+          await runtime.manager.setBrowserStatus(previous.profileId, "closing");
+          try {
+            await browser.close(previous);
+          } catch (error) {
+            if (errorCode(error) !== "NOT_PROJECT_BROWSER") throw error;
+          } finally {
+            await runtime.manager.setBrowserStatus(previous.profileId, "closed").catch(() => undefined);
+          }
+        });
+        sendJson(response, 200, await profileView(updated)); return true;
+      }
+      if (action === "open") { await browser.open(profile); const updated = await runtime.manager.setBrowserStatus(profileId, "open"); sendJson(response, 200, await profileView(updated)); return true; }
+      if (action === "close") {
+        if (profile.browserStatus === "closed") { sendJson(response, 200, await profileView(profile)); return true; }
+        await runtime.manager.setBrowserStatus(profileId, "closing");
+        try {
+          await browser.close(profile);
+          const updated = await runtime.manager.setBrowserStatus(profileId, "closed");
+          sendJson(response, 200, await profileView(updated));
+        } catch (error) {
+          await runtime.manager.setBrowserStatus(profileId, "unknown").catch(() => undefined);
+          throw error;
+        }
+        return true;
+      }
       if (action === "delete-confirmation") { const body = objectBody(await readJson(request), ["profileName"]); if (requiredString(body.profileName, "profileName") !== profile.name) throw new HttpError(400, "PROFILE_NAME_MISMATCH", "Profile 名称不匹配"); sendJson(response, 200, { confirmation: runtime.manager.issueDeleteConfirmation(profileId, "page"), expiresInSeconds: 120 }); return true; }
       if (action === "backups") { const backup = await createBackup(profile, backupRoot); backups.set(backup.backupId, backup); sendJson(response, 201, backup); return true; }
     }
@@ -280,7 +312,7 @@ export async function startManagerServer(options: StartManagerServerOptions): Pr
     if (directoryAction && method === "POST") { const body = objectBody(await readJson(request), ["targetRootDir"]); sendJson(response, 200, await changeDefaultRoot(runtime.store, requiredString(body.targetRootDir, "targetRootDir"), directoryAction[1] as DirectoryChangeMode)); return true; }
     if (method === "GET" && path === "/backups") { sendJson(response, 200, { backups: [...backups.values()].map((backup) => ({ ...backup, backupDir: backup.backupDir })) }); return true; }
     const restoreMatch = path.match(/^\/backups\/([^/]+)\/restore$/);
-    if (restoreMatch && method === "POST") { const backup = backups.get(decodeURIComponent(restoreMatch[1]!)); if (!backup) throw new HttpError(404, "BACKUP_NOT_FOUND", "备份不存在"); const body = objectBody(await readJson(request), ["name"]); const profile = await restoreBackup(backup, runtime.manager, requiredString(body.name, "name")); sendJson(response, 201, profileView(profile)); return true; }
+    if (restoreMatch && method === "POST") { const backup = backups.get(decodeURIComponent(restoreMatch[1]!)); if (!backup) throw new HttpError(404, "BACKUP_NOT_FOUND", "备份不存在"); const body = objectBody(await readJson(request), ["name"]); const profile = await restoreBackup(backup, runtime.manager, requiredString(body.name, "name")); sendJson(response, 201, await profileView(profile)); return true; }
 
     const imageList = path.match(/^\/profiles\/([^/]+)\/images$/);
     if (imageList && method === "GET") {

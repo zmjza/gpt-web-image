@@ -144,3 +144,23 @@
 ## 错误契约
 
 已实现错误码包括 `PROFILE_NOT_FOUND`、`PROFILE_SCOPE_VIOLATION`、`DIRECTORY_MISSING`、`PERMISSION_DENIED`、`SCAN_FAILED`、`INDEX_READ_FAILED`、`INDEX_INVALID`、`IMAGE_NOT_FOUND`、`IMAGE_MISSING`、`IMAGE_CORRUPT`、`IMAGE_UNAVAILABLE` 和 `INVALID_INPUT`。非数字、越界分页、反向尺寸范围和无效时间均返回 400；错误响应不包含认证数据、完整敏感日志或未脱敏 URL。
+
+## 2026-08-05 Profile 管理生命周期修复收口
+
+以下行为已在 `src/manager/server.ts` 和管理页面中实现，并由隔离页面 E2E、管理服务回归和 macOS 真实只读检测覆盖：
+
+| 操作 | 实际语义 | 关键约束 |
+|---|---|---|
+| `GET /profiles` | 扫描默认根目录后返回 Profile 摘要 | 每项增加 `pathStatus`；只返回路径、状态、时间和备注，不返回认证数据 |
+| `POST /profiles/:id/check` | 受控后台 Chrome 检测登录、会员和 Chrome 状态 | 不改变 active；不把检测会话标记为手动打开；失败保留原 active |
+| `POST /profiles/:id/activate` | 先做资格检查，再启用该 Profile | 只允许 `logged_in` 且 `plus/pro/go`；切换前关闭旧项目浏览器；全局最多一个 active |
+| `POST /profiles/:id/open` | 打开或复用该 Profile 的项目专用 Chrome | 不等同启用；只允许 `pathStatus=ok`，使用全局 BrowserLease |
+| `POST /profiles/:id/close` | 关闭该 Profile 的项目专用 Chrome | `closed` 幂等；关闭中显示 `closing`；只关闭项目拥有的进程，异常回写 `unknown` 并释放 lease/锁 |
+
+### Profile 路径状态
+
+`pathStatus` 只允许 `ok`、`missing`、`mismatch`、`not_owned`、`unreadable`。检测、启用、打开和关闭在状态不是 `ok` 时返回 `PROFILE_PATH_INVALID`（HTTP 422），防止把错误路径显示成可用 Profile。创建和导入提交时再次校验归属标记，扫描提交事务内按规范化路径和名称去重。
+
+### 管理页面错误映射
+
+`BROWSER_LEASED`、`NOT_PROJECT_BROWSER`、`PROFILE_BUSY` 等资源冲突返回 HTTP 409；`MEMBERSHIP_INELIGIBLE`、`PROFILE_PATH_INVALID` 等资格或路径问题返回 HTTP 422；未知错误保持脱敏的 `INTERNAL_ERROR`，不回显请求值或浏览器认证信息。

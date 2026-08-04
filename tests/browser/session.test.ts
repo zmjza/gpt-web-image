@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { buildHeadedChromeArgs, ensureOwnedProfile, hideMacWindowByTitle, profileMarkerPath } from "../../src/browser/profile.js";
+import { buildHeadedChromeArgs, closeConnectedChrome, ensureOwnedProfile, hideMacWindowByTitle, profileMarkerPath } from "../../src/browser/profile.js";
 import { LoginReadinessTracker, classifyLoginPage, isVerificationChallenge } from "../../src/browser/login.js";
 import { createHandoffPlan } from "../../src/browser/handoff.js";
 
@@ -59,6 +59,23 @@ test("T17 runs normal tasks in minimized ordinary Chrome without headless finger
   const args = buildHeadedChromeArgs(resolve("dedicated profile"), "https://chatgpt.com/", 43124, true);
   assert.equal(args.includes("--start-minimized"), true);
   assert.equal(args.some((argument) => /--headless|--enable-automation|--no-sandbox/.test(argument)), false);
+});
+
+test("T17 closes an owned Chrome process within the bounded force-close window", async () => {
+  let killed = false;
+  const listeners = new Map<string, () => void>();
+  const child = {
+    exitCode: null,
+    signalCode: null,
+    once(event: string, listener: () => void) { listeners.set(event, listener); return this; },
+    removeListener(event: string) { listeners.delete(event); return this; },
+    kill() { killed = true; this.exitCode = 0; listeners.get("exit")?.(); return true; }
+  } as any;
+  const browser = { close: () => new Promise<void>(() => undefined) } as any;
+  const started = Date.now();
+  await closeConnectedChrome(browser, child, { gracefulTimeoutMs: 20, forceTimeoutMs: 20 });
+  assert.equal(killed, true);
+  assert.ok(Date.now() - started < 500);
 });
 
 test("T17 retries the macOS window marker while Chrome propagates the title", async () => {

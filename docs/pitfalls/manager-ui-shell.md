@@ -143,3 +143,19 @@
 **相关文件或命令**：`src/images/manager-scanner.ts`、`src/manager/server.ts`、`src/manager/public/app.js`、`/profiles/:profileId/images/index-status`。
 
 **适用范围**：macOS/Windows 图片管理扫描、空态、错误态和 Profile 切换。
+
+## 创建/导入与默认目录扫描必须在提交时去重
+
+**现象**：管理页面创建或导入 Profile 的同时触发列表扫描，两个请求都看不到对方刚注册的路径，最终注册表出现重复 Profile。
+
+**根因**：扫描发现和页面写入之间存在竞态；只在扫描开始前比较注册表不能保证提交时仍然唯一。
+
+**正确做法**：扫描结果提交到注册表时在事务内按规范化绝对路径和名称再次去重；创建/导入仍必须先校验专用归属标记，普通 Chrome 目录直接拒绝。
+
+**验证方式**：运行 `tests/profiles/directories.test.ts` 的竞态回归和 `/tmp/gwi-manager-isolated-e2e.mjs`；页面 E2E 创建、合法导入、普通目录拒绝均通过且注册表没有重复项。
+
+**禁止事项**：不得通过删除重复目录修复竞态；不得只依赖 UI 禁用按钮；不得把普通 Chrome 目录标记为项目 Profile。
+
+**相关文件或命令**：`src/profiles/directories.ts`、`src/profiles/manager.ts`、`tests/profiles/directories.test.ts`、`npm test`。
+
+**适用范围**：macOS/Windows 默认目录扫描、管理页面创建/导入和并发注册。

@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { access, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { access, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { PROFILE_RETENTION_POLICY, type EligibilityResult, type ProfileRecord, type ProfileRegistry } from "./types.js";
 import { ProfileRegistryStore } from "./registry.js";
 
 const MARKER = ".gpt-web-image-profile.json";
+
+export type ProfilePathStatus = "ok" | "missing" | "mismatch" | "not_owned" | "unreadable";
 
 export class ProfileManagerError extends Error {
   public constructor(public readonly code: string, message = code) {
@@ -52,6 +54,33 @@ async function verifyOwnedDirectory(profileDir: string): Promise<void> {
   } catch {
     throw new ProfileManagerError("NOT_OWNED", "目录不是本项目专用 Profile");
   }
+}
+
+export async function inspectProfilePath(profileDir: string): Promise<ProfilePathStatus> {
+  const directory = resolve(profileDir);
+  let stats;
+  try {
+    stats = await lstat(directory);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return code === "ENOENT" || code === "ENOTDIR" ? "missing" : code === "EACCES" ? "unreadable" : "not_owned";
+  }
+  if (!stats.isDirectory() || stats.isSymbolicLink()) return "not_owned";
+  let marker: Record<string, unknown>;
+  try {
+    marker = JSON.parse(await readFile(join(directory, MARKER), "utf8")) as Record<string, unknown>;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return code === "EACCES" ? "unreadable" : "not_owned";
+  }
+  if (typeof marker.profileDir !== "string" || resolve(marker.profileDir) !== directory) return "mismatch";
+  if (marker.schemaVersion !== "1" || marker.owner !== "gpt-web-image" || marker.retentionPolicy !== PROFILE_RETENTION_POLICY) return "not_owned";
+  try {
+    await access(directory, constants.R_OK | constants.W_OK);
+  } catch {
+    return "unreadable";
+  }
+  return "ok";
 }
 
 function validateName(name: string): string {
@@ -147,7 +176,11 @@ export class ProfileManager {
     return updated as ProfileRecord;
   }
 
-  public async activate(profileId: string, check: (profile: ProfileRecord) => Promise<EligibilityResult>): Promise<ProfileRecord> {
+  public async activate(
+    profileId: string,
+    check: (profile: ProfileRecord) => Promise<EligibilityResult>,
+    beforeSwitch?: (previous: ProfileRecord | null, selected: ProfileRecord) => Promise<void>
+  ): Promise<ProfileRecord> {
     const registry = await this.store.read();
     const selected = registry.profiles.find((profile) => profile.profileId === profileId);
     if (!selected) throw new ProfileManagerError("PROFILE_NOT_FOUND");
@@ -158,6 +191,9 @@ export class ProfileManager {
     if (eligibility.login === "verification_required") throw new ProfileManagerError("VERIFICATION_REQUIRED");
     if (eligibility.login === "technical_failure") throw new ProfileManagerError("ELIGIBILITY_CHECK_FAILED");
     if (!eligibility.eligible || !["plus", "pro", "go"].includes(eligibility.membership)) throw new ProfileManagerError("MEMBERSHIP_INELIGIBLE");
+    const latest = await this.store.read();
+    const previous = latest.profiles.find((profile) => profile.active && profile.profileId !== profileId) ?? null;
+    if (beforeSwitch) await beforeSwitch(previous, selected);
     let activated: ProfileRecord | undefined;
     await this.store.transaction((current) => {
       if (!current.profiles.some((profile) => profile.profileId === profileId)) throw new ProfileManagerError("PROFILE_NOT_FOUND");

@@ -175,3 +175,35 @@
 **相关文件或命令**：`src/browser/browser-lease.ts`、`src/manager/server.ts`、`tests/manager/server.test.ts`、`/api/profiles/:profileId/check`。
 
 **适用范围**：Profile 资格检查、打开浏览器、后台生图和任何共享专用 Chrome 的管理 API 并发请求。
+
+## 管理页的启用、检测和打开不能复用同一个 UI 语义
+
+**现象**：Profile 列表把“启用”“检测状态”和“打开浏览器”都实现为打开浏览器或只改一个状态字段，切换 Profile 后旧浏览器仍占用，页面 active 与实际浏览器不一致。
+
+**根因**：启用是资格检查后的唯一 active 切换；检测是受控后台会话读取登录/会员/Chrome 状态；打开是用户主动使用项目浏览器。三者的副作用和生命周期不同。
+
+**正确做法**：启用前检查 `pathStatus`、登录和 Plus/Pro/Go，切换前关闭旧项目浏览器并保持唯一 active；检测只更新检查结果，不改变 active 或手动浏览器状态；打开/关闭只操作项目拥有的浏览器，并用 `closing` 状态防止重复关闭。
+
+**验证方式**：隔离页面 E2E 依次启用两个 Profile，断言始终只有一个 active；打开/关闭后断言浏览器状态、Profile 锁和 BrowserLease 均清理；真实 macOS 魏邦检测返回 `logged_in / plus`，里燃未登录时 active 不变。
+
+**禁止事项**：不得把检测成功当成启用成功；不得打开一个 Profile 时隐式切换 active；不得按应用级别关闭用户日常 Chrome；不得在关闭异常时遗留 lease/锁或吞掉错误。
+
+**相关文件或命令**：`src/manager/server.ts`、`src/profiles/manager.ts`、`tests/manager/server.test.ts`、`/tmp/gwi-manager-isolated-e2e.mjs`、`npm test`。
+
+**适用范围**：macOS/Windows Profile 管理页面、唯一启用、资格检测和专用 Chrome 生命周期。
+
+## Profile 路径健康状态必须在展示和动作前复核
+
+**现象**：注册表中的 Profile 路径被移动、替换或变成普通 Chrome 目录后，页面仍显示可用，检测/启用/打开可能操作错误目录。
+
+**根因**：注册表是持久化索引，不等于当前目录仍存在且保留项目归属标记；只在导入时检查会漏掉后续外部变化。
+
+**正确做法**：列表返回脱敏的 `pathStatus`，动作执行前重新检查目录、标记路径、owner、schema 和读写权限；非 `ok` 返回 `PROFILE_PATH_INVALID`，不得启动浏览器。
+
+**验证方式**：隔离 E2E 导入普通目录必须失败；管理服务路径异常回归返回 422；真实魏邦返回 `pathStatus=ok`，`doctor --json` 的 marker 和保留策略仍存在。
+
+**禁止事项**：不得用字符串前缀代替归属校验；不得为修复路径状态自动删除、迁移或重建真实 Profile；不得把绝对认证路径写入页面日志。
+
+**相关文件或命令**：`src/profiles/manager.ts`、`src/manager/server.ts`、`tests/profiles/directories.test.ts`、`node dist/src/cli.js doctor --json`。
+
+**适用范围**：Profile 扫描、管理 API、页面操作和跨平台路径迁移前置检查。

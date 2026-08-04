@@ -176,11 +176,21 @@ async function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise
   });
 }
 
-async function closeConnectedChrome(browser: Browser, child: ChildProcess): Promise<void> {
-  await browser.close().catch(() => undefined);
-  if (await waitForChildExit(child, 3000)) return;
+export interface CloseConnectedChromeOptions {
+  gracefulTimeoutMs?: number;
+  forceTimeoutMs?: number;
+}
+
+export async function closeConnectedChrome(browser: Browser, child: ChildProcess, options: CloseConnectedChromeOptions = {}): Promise<void> {
+  const gracefulTimeoutMs = Math.max(0, Math.floor(options.gracefulTimeoutMs ?? 900));
+  const forceTimeoutMs = Math.max(0, Math.floor(options.forceTimeoutMs ?? 500));
+  void Promise.resolve().then(() => browser.close()).catch(() => undefined);
+  if (await waitForChildExit(child, gracefulTimeoutMs)) return;
   child.kill();
-  await waitForChildExit(child, 1000);
+  if (await waitForChildExit(child, forceTimeoutMs)) return;
+  // The child was created by this session and still owns the project lease.
+  child.kill("SIGKILL");
+  await waitForChildExit(child, forceTimeoutMs);
 }
 
 export async function launchProfile(options: LaunchProfileOptions): Promise<BrowserSession> {

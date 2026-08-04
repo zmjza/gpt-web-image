@@ -125,6 +125,49 @@ test("T51 listens only on loopback and exposes schema-limited Profile lifecycle 
   } finally { await server.close(); }
 });
 
+test("Profile activation closes the previous project browser before switching active", async () => {
+  const { server, baseUrl } = await fixture();
+  try {
+    const first = (await json(baseUrl, "/profiles", { method: "POST", body: JSON.stringify({ name: "旧启用", accountLabel: null }) })).body;
+    const second = (await json(baseUrl, "/profiles", { method: "POST", body: JSON.stringify({ name: "新启用", accountLabel: null }) })).body;
+    assert.equal((await json(baseUrl, `/profiles/${first.profileId}/activate`, { method: "POST" })).response.status, 200);
+    assert.equal((await json(baseUrl, `/profiles/${first.profileId}/open`, { method: "POST" })).response.status, 200);
+
+    const switched = await json(baseUrl, `/profiles/${second.profileId}/activate`, { method: "POST" });
+    assert.equal(switched.response.status, 200);
+    const listed = await json(baseUrl, "/profiles");
+    const oldProfile = listed.body.profiles.find((profile: { profileId: string }) => profile.profileId === first.profileId);
+    const newProfile = listed.body.profiles.find((profile: { profileId: string }) => profile.profileId === second.profileId);
+    assert.equal(listed.body.activeProfileId, second.profileId);
+    assert.equal(oldProfile.active, false);
+    assert.equal(oldProfile.browserStatus, "closed");
+    assert.equal(newProfile.active, true);
+  } finally { await server.close(); }
+});
+
+test("Profile close is idempotent and exposes marker path health", async () => {
+  const { root, server, baseUrl } = await fixture();
+  try {
+    const profile = (await json(baseUrl, "/profiles", { method: "POST", body: JSON.stringify({ name: "可关闭", accountLabel: null }) })).body;
+    assert.equal(profile.pathStatus, "ok");
+    assert.equal((await json(baseUrl, `/profiles/${profile.profileId}/open`, { method: "POST" })).response.status, 200);
+    assert.equal((await json(baseUrl, `/profiles/${profile.profileId}/close`, { method: "POST" })).response.status, 200);
+    const closedAgain = await json(baseUrl, `/profiles/${profile.profileId}/close`, { method: "POST" });
+    assert.equal(closedAgain.response.status, 200);
+    assert.equal(closedAgain.body.browserStatus, "closed");
+
+    await writeFile(join(profile.profileDir, ".gpt-web-image-profile.json"), JSON.stringify({
+      schemaVersion: "1", owner: "gpt-web-image", createdAt: profile.createdAt,
+      profileDir: join(root, "wrong-path"), retentionPolicy: "never-auto-delete"
+    }));
+    const listed = await json(baseUrl, "/profiles");
+    assert.equal(listed.body.profiles.find((entry: { profileId: string }) => entry.profileId === profile.profileId).pathStatus, "mismatch");
+    const activation = await json(baseUrl, `/profiles/${profile.profileId}/activate`, { method: "POST" });
+    assert.equal(activation.response.status, 422);
+    assert.equal(activation.body.error.code, "PROFILE_PATH_INVALID");
+  } finally { await server.close(); }
+});
+
 test("T51/T53 requires page-issued two-step confirmation and never exposes an image delete API", async () => {
   const { server, baseUrl } = await fixture();
   try {

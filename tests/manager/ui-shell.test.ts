@@ -45,6 +45,16 @@ test("T52/T56 shell replaces mock placeholders with the local manager API", () =
   assert.doesNotMatch(source, /TODO\(codex-(?:connect|state|validate)\)/);
 });
 
+test("Profile manager UI separates activation from browser controls and uses the shared Toast", () => {
+  const source = readFileSync("src/manager/public/app.js", "utf8");
+  const contracts = readFileSync("src/manager/public/ui-contracts.js", "utf8");
+  assert.match(source, /data-action=["']switch-profile["']/);
+  assert.match(source, /manager-toast/);
+  assert.match(source, /正在关闭/);
+  assert.doesNotMatch(source, /当前启用 Profile[\\s\\S]{0,500}创建或导入 Profile/);
+  assert.match(contracts, /closing/);
+});
+
 test("T52 shell preserves the four Stitch views and profile dialog", () => {
   const html = readFileSync("src/manager/public/index.html", "utf8");
 
@@ -65,6 +75,7 @@ test("T52 preserves the Stitch visual asset as a local source reference", () => 
 
 test("T52 tablet navigation keeps labels readable in the compact header", () => {
   const css = readFileSync("src/manager/public/styles.css", "utf8");
+  const source = readFileSync("src/manager/public/app.js", "utf8");
 
   assert.match(css, /@media \(min-width: 768px\) and \(max-width: 1023px\)/);
   assert.match(
@@ -77,6 +88,8 @@ test("T52 tablet navigation keeps labels readable in the compact header", () => 
     /@media \(min-width: 768px\) and \(max-width: 1023px\)[\s\S]*?nav \.flex\.items-center\.space-x-4\s*>\s*button\.bg-mint-500[\s\S]*?font-size:\s*0/,
     "tablet refresh control must use a stable icon-only footprint"
   );
+  assert.match(source, /class="lg:hidden space-y-3"/);
+  assert.match(source, /class="hidden lg:block rounded-table-container/);
 });
 
 test("T62-T77 image UI preserves single-Profile request isolation and has no delete operation", () => {

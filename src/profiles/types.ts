@@ -3,7 +3,7 @@ export const PROFILE_RETENTION_POLICY = "never-auto-delete" as const;
 
 export type LoginStatus = "checking" | "logged_in" | "needs_login" | "verification_required" | "technical_failure";
 export type Membership = "plus" | "pro" | "go" | "other" | "technical_failure";
-export type BrowserStatus = "closed" | "open" | "task_busy" | "unknown";
+export type BrowserStatus = "closed" | "open" | "closing" | "task_busy" | "unknown";
 
 export interface ProfileRecord {
   profileId: string;

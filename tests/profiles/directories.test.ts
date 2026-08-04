@@ -7,6 +7,7 @@ import { ProfileRegistryStore } from "../../src/profiles/registry.js";
 import { ProfileManager } from "../../src/profiles/manager.js";
 import { scanDefaultRoot } from "../../src/profiles/directories.js";
 import { changeDefaultRoot } from "../../src/profiles/migration.js";
+import type { ProfileRecord } from "../../src/profiles/types.js";
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "gpt-web-image-directories-"));
@@ -29,6 +30,30 @@ test("T44 scans only owned direct children and never follows symlink escapes", a
   assert.equal(result.discovered.length, 0);
   assert.equal(result.skipped.some((entry) => entry.name === "linked" && entry.reason === "SYMLINK_REJECTED"), true);
   assert.equal(result.skipped.some((entry) => entry.name === "foreign" && entry.reason === "NOT_OWNED"), true);
+});
+
+test("directory discovery rechecks paths at commit time when registration races a scan", async () => {
+  const { root, profiles } = await fixture();
+  const discoveredPath = join(profiles, "racing-profile");
+  await mkdir(discoveredPath, { recursive: true });
+  await writeFile(join(discoveredPath, ".gpt-web-image-profile.json"), JSON.stringify({ schemaVersion: "1", owner: "gpt-web-image", createdAt: new Date().toISOString(), profileDir: resolve(discoveredPath), retentionPolicy: "never-auto-delete" }));
+
+  class RacingStore extends ProfileRegistryStore {
+    private raced = false;
+    public override async transaction(update: Parameters<ProfileRegistryStore["transaction"]>[0]): Promise<Awaited<ReturnType<ProfileRegistryStore["transaction"]>>> {
+      if (!this.raced) {
+        this.raced = true;
+        const record: ProfileRecord = { profileId: "racing-registration", name: "已登记竞态", accountLabel: null, notes: null, profileDir: discoveredPath, source: "imported", active: false, retentionPolicy: "never-auto-delete", loginStatus: "checking", membership: "technical_failure", browserStatus: "closed", taskBusy: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), lastCheckedAt: null, lastOpenedAt: null };
+        await super.transaction((current) => ({ ...current, profiles: [...current.profiles, record] }));
+      }
+      return super.transaction(update);
+    }
+  }
+
+  const store = new RacingStore(join(root, "profile-registry.json"), profiles);
+  await scanDefaultRoot(store);
+  const registry = await store.read();
+  assert.equal(registry.profiles.filter((profile) => resolve(profile.profileDir) === resolve(discoveredPath)).length, 1);
 });
 
 test("T46 retain changes only the default root and keeps existing profile paths", async () => {

@@ -1,4 +1,4 @@
-import { managerContractVersion, membershipLabels, loginLabels, browserLabels, imageEmptyStateMessage } from "./ui-contracts.js";
+import { managerContractVersion, membershipLabels, loginLabels, browserLabels, pathLabels, toastLabels, imageEmptyStateMessage } from "./ui-contracts.js";
 
 const state = {
   profiles: [],
@@ -48,20 +48,33 @@ async function api(path, options = {}) {
   return payload;
 }
 
+const toastIcons = { success: "fa-solid fa-circle-check", error: "fa-solid fa-circle-xmark", warning: "fa-solid fa-triangle-exclamation", info: "fa-solid fa-circle-info" };
+const toastStyles = {
+  success: "manager-toast-success",
+  error: "manager-toast-error",
+  warning: "manager-toast-warning",
+  info: "manager-toast-info"
+};
+
 function notify(message, type = "info") {
+  const normalizedType = toastStyles[type] ? type : "info";
   let region = document.getElementById("manager-notifications");
   if (!region) {
     region = document.createElement("div");
     region.id = "manager-notifications";
-    region.className = "fixed right-4 top-20 z-[80] space-y-2 max-w-sm";
+    region.className = "manager-toast-region";
     region.setAttribute("aria-live", "polite");
+    region.setAttribute("aria-atomic", "false");
     document.body.append(region);
   }
   const item = document.createElement("div");
-  item.className = `rounded-lg border px-4 py-3 text-sm shadow-lg ${type === "error" ? "bg-red-50 border-red-200 text-red-800" : "bg-white border-gray-200 text-gray-700"}`;
-  item.textContent = message;
+  item.className = `manager-toast ${toastStyles[normalizedType]}`;
+  item.setAttribute("role", normalizedType === "error" ? "alert" : "status");
+  item.dataset.toastType = normalizedType;
+  item.innerHTML = `<i class="${toastIcons[normalizedType]} manager-toast-icon" aria-hidden="true"></i><div class="manager-toast-copy"><strong>${escapeHtml(toastLabels[normalizedType])}</strong><span>${escapeHtml(message)}</span></div><button type="button" class="manager-toast-dismiss" data-action="close-toast" aria-label="关闭提示"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`;
   region.append(item);
-  window.setTimeout(() => item.remove(), 5000);
+  const timer = window.setTimeout(() => item.remove(), 5000);
+  item.dataset.dismissTimer = String(timer);
 }
 
 function profileById(profileId) { return state.profiles.find((profile) => profile.profileId === profileId) ?? null; }
@@ -96,7 +109,20 @@ function statusBadge(profile) {
 
 function actionButton(action, profileId, label, icon, disabled = false, tone = "primary") {
   const styles = tone === "danger" ? "bg-red-50 text-red-700 border-red-200" : tone === "quiet" ? "bg-white text-gray-700 border-gray-200" : "bg-mint-600 text-white border-mint-600";
-  return `<button type="button" data-action="${action}" data-profile-id="${escapeHtml(profileId)}" class="h-9 px-3 rounded-lg border text-sm font-medium ${styles} disabled:opacity-50 disabled:cursor-not-allowed" ${disabled ? "disabled" : ""}><i class="${icon} mr-1.5"></i>${escapeHtml(label)}</button>`;
+  return `<button type="button" data-action="${action}" data-profile-id="${escapeHtml(profileId)}" class="h-9 px-3 rounded-lg border text-sm font-medium ${styles} disabled:opacity-50 disabled:cursor-not-allowed" ${disabled ? "disabled" : ""}${label === "正在关闭" ? ' aria-busy="true"' : ""}><i class="${icon} mr-1.5"></i>${escapeHtml(label)}</button>`;
+}
+
+function browserAction(profile) {
+  if (profile.browserStatus === "closing") return actionButton("close-browser", profile.profileId, "正在关闭", "fa-solid fa-spinner fa-spin", true, "quiet");
+  const open = profile.browserStatus === "open";
+  return actionButton(open ? "close-browser" : "open-browser", profile.profileId, open ? "关闭浏览器" : "打开浏览器", "fa-brands fa-chrome", profile.taskBusy, open ? "danger" : "primary");
+}
+
+function profileEligibilityHint(profile) {
+  if (profile.pathStatus && profile.pathStatus !== "ok") return pathLabels[profile.pathStatus] ?? "路径异常";
+  if (profile.loginStatus !== "logged_in") return loginLabels[profile.loginStatus] ?? "账号状态未知";
+  if (!(profile.membership in membershipLabels) || !["plus", "pro", "go"].includes(profile.membership)) return membershipLabels[profile.membership] ?? "会员资格不符合";
+  return "可启用";
 }
 
 function renderOverview() {
@@ -106,22 +132,22 @@ function renderOverview() {
   const available = state.profiles.filter(eligible).length;
   const rows = state.profiles.map((profile) => `<tr class="border-t border-gray-100 hover:bg-mint-50/30" data-profile-row="${escapeHtml(profile.profileId)}">
     <td class="py-4"><button class="text-left" data-action="detail" data-profile-id="${escapeHtml(profile.profileId)}"><strong>${escapeHtml(profile.name)}</strong>${profile.active ? '<span class="ml-2 text-[10px] bg-mint-500 text-white px-1.5 py-0.5 rounded">当前启用</span>' : ""}<span class="block text-sm text-gray-500 mt-1">${escapeHtml(profile.accountLabel || profile.notes || "-")}</span></button></td>
-    <td class="py-4"><div class="flex gap-2 flex-wrap">${statusBadge(profile)}</div></td>
-    <td class="py-4 text-sm text-gray-600">${escapeHtml(browserLabels[profile.browserStatus] ?? "未知")}${profile.taskBusy ? '<span class="block text-xs text-amber-600">任务占用</span>' : ""}</td>
+    <td class="py-4"><div class="flex gap-2 flex-wrap">${statusBadge(profile)}<span class="profile-eligibility-hint">${escapeHtml(profileEligibilityHint(profile))}</span></div></td>
+    <td class="py-4 text-sm text-gray-600"><span class="inline-flex items-center gap-1.5"><i class="fa-brands fa-chrome text-gray-400" aria-hidden="true"></i>${escapeHtml(browserLabels[profile.browserStatus] ?? "未知")}</span>${profile.taskBusy ? '<span class="block text-xs text-amber-600">任务占用</span>' : ""}</td>
     <td class="py-4 text-sm text-gray-500">${escapeHtml(formatDate(profile.lastCheckedAt))}</td>
-    <td class="py-4"><div class="flex justify-end gap-2 flex-wrap">${actionButton("activate", profile.profileId, profile.active ? "已启用" : "启用", "fa-solid fa-power-off", profile.active || profile.taskBusy, "quiet")}${actionButton(profile.browserStatus === "open" ? "close-browser" : "open-browser", profile.profileId, profile.browserStatus === "open" ? "关闭" : "打开浏览器", "fa-brands fa-chrome", profile.taskBusy, "primary")}${actionButton("check", profile.profileId, "检测", "fa-solid fa-rotate", profile.taskBusy, "quiet")}${actionButton("edit", profile.profileId, "编辑", "fa-solid fa-pen", false, "quiet")}</div></td>
+    <td class="py-4"><div class="flex justify-end gap-2 flex-wrap">${actionButton("activate", profile.profileId, profile.active ? "已启用" : "启用", "fa-solid fa-power-off", profile.active || profile.taskBusy, "quiet")}${browserAction(profile)}${actionButton("check", profile.profileId, "检测状态", "fa-solid fa-stethoscope", profile.taskBusy || profile.browserStatus === "closing", "quiet")}${actionButton("edit", profile.profileId, "编辑", "fa-solid fa-pen", false, "quiet")}</div></td>
   </tr>`).join("");
-  const mobileCards = state.profiles.map((profile) => `<article class="bg-white border border-gray-100 rounded-xl p-4 shadow-soft" data-profile-row="${escapeHtml(profile.profileId)}"><button class="text-left w-full" data-action="detail" data-profile-id="${escapeHtml(profile.profileId)}"><strong>${escapeHtml(profile.name)}</strong>${profile.active ? '<span class="ml-2 text-[10px] bg-mint-500 text-white px-1.5 py-0.5 rounded">当前启用</span>' : ""}<span class="block text-sm text-gray-500 mt-1">${escapeHtml(profile.accountLabel || profile.notes || "-")}</span></button><div class="flex gap-2 flex-wrap mt-3">${statusBadge(profile)}</div><p class="text-sm text-gray-500 mt-3">Chrome：${escapeHtml(browserLabels[profile.browserStatus] ?? "未知")} · 检测：${escapeHtml(formatDate(profile.lastCheckedAt))}</p><div class="grid grid-cols-2 gap-2 mt-4">${actionButton("activate", profile.profileId, profile.active ? "已启用" : "启用", "fa-solid fa-power-off", profile.active || profile.taskBusy, "quiet")}${actionButton(profile.browserStatus === "open" ? "close-browser" : "open-browser", profile.profileId, profile.browserStatus === "open" ? "关闭" : "打开浏览器", "fa-brands fa-chrome", profile.taskBusy, "primary")}${actionButton("check", profile.profileId, "检测", "fa-solid fa-rotate", profile.taskBusy, "quiet")}${actionButton("edit", profile.profileId, "编辑", "fa-solid fa-pen", false, "quiet")}</div></article>`).join("");
+  const mobileCards = state.profiles.map((profile) => `<article class="bg-white border border-gray-100 rounded-xl p-4 shadow-soft" data-profile-row="${escapeHtml(profile.profileId)}"><button class="text-left w-full" data-action="detail" data-profile-id="${escapeHtml(profile.profileId)}"><strong>${escapeHtml(profile.name)}</strong>${profile.active ? '<span class="ml-2 text-[10px] bg-mint-500 text-white px-1.5 py-0.5 rounded">当前启用</span>' : ""}<span class="block text-sm text-gray-500 mt-1">${escapeHtml(profile.accountLabel || profile.notes || "-")}</span></button><div class="flex gap-2 flex-wrap mt-3">${statusBadge(profile)}<span class="profile-eligibility-hint">${escapeHtml(profileEligibilityHint(profile))}</span></div><p class="text-sm text-gray-500 mt-3">Chrome：${escapeHtml(browserLabels[profile.browserStatus] ?? "未知")} · 检测：${escapeHtml(formatDate(profile.lastCheckedAt))}</p><div class="grid grid-cols-2 gap-2 mt-4">${actionButton("activate", profile.profileId, profile.active ? "已启用" : "启用", "fa-solid fa-power-off", profile.active || profile.taskBusy, "quiet")}${browserAction(profile)}${actionButton("check", profile.profileId, "检测状态", "fa-solid fa-stethoscope", profile.taskBusy || profile.browserStatus === "closing", "quiet")}${actionButton("edit", profile.profileId, "编辑", "fa-solid fa-pen", false, "quiet")}</div></article>`).join("");
   view.innerHTML = `<div id="overview-state" class="space-y-8">
     <section class="bg-gradient-to-r from-mint-50 to-mint-100 rounded-2xl p-6 shadow-soft border border-mint-200/50 flex flex-col sm:flex-row justify-between gap-4 items-start sm:items-center">
       <div><p class="text-sm text-gray-500 mb-1">当前启用 Profile</p><h1 class="text-2xl font-bold">${escapeHtml(active?.name ?? "尚未启用")}</h1><p class="text-sm text-gray-600 mt-2">${active ? `${escapeHtml(membershipLabels[active.membership])} · ${escapeHtml(loginLabels[active.loginStatus])} · ${escapeHtml(browserLabels[active.browserStatus])}` : "请选择已登录且具备 Plus、Pro 或 Go 会员的 Profile"}</p></div>
-      <button type="button" data-action="create" class="h-10 px-5 bg-mint-600 text-white rounded-xl text-sm font-semibold"><i class="fa-solid fa-plus mr-2"></i>创建或导入 Profile</button>
+      <button type="button" data-action="switch-profile" class="h-10 px-5 bg-white text-gray-700 border border-mint-200 rounded-xl text-sm font-semibold shadow-sm"><i class="fa-solid fa-right-left mr-2 text-mint-600"></i>切换 Profile</button>
     </section>
     <section class="grid grid-cols-2 lg:grid-cols-4 gap-4" aria-label="Profile 统计">
       ${[["Profile 总数", state.profiles.length], ["已登录", loggedIn], ["可启用", available], ["正在使用", state.profiles.filter((profile) => profile.browserStatus !== "closed" || profile.taskBusy).length]].map(([label, value]) => `<div class="bg-white rounded-2xl p-5 shadow-soft"><p class="text-sm text-gray-500">${label}</p><strong class="text-3xl block mt-1">${value}</strong></div>`).join("")}
     </section>
     <section><div class="flex justify-between items-center mb-4"><h2 class="text-xl font-bold">Profile 列表</h2><button type="button" data-action="create" class="h-10 px-5 bg-mint-600 text-white rounded-xl text-sm font-semibold"><i class="fa-solid fa-plus mr-2"></i>创建 Profile</button></div>
-      <div class="md:hidden space-y-3">${mobileCards || '<p class="py-12 text-center text-gray-500">尚无 Profile，请先创建或导入。</p>'}</div><div class="hidden md:block rounded-table-container shadow-soft overflow-x-auto"><table class="w-full min-w-[900px] text-left"><thead><tr class="bg-gray-50 text-xs text-gray-500"><th class="py-4">Profile 信息</th><th>账号状态</th><th>Chrome 状态</th><th>最后检测</th><th class="text-right">操作</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="py-14 text-center text-gray-500">尚无 Profile，请先创建或导入。</td></tr>'}</tbody></table></div>
+      <div class="lg:hidden space-y-3">${mobileCards || '<p class="py-12 text-center text-gray-500">尚无 Profile，请先创建或导入。</p>'}</div><div class="hidden lg:block rounded-table-container shadow-soft overflow-x-auto"><table class="w-full min-w-[900px] text-left"><thead><tr class="bg-gray-50 text-xs text-gray-500"><th class="py-4">Profile 信息</th><th>账号状态</th><th>Chrome 状态</th><th>最后检测</th><th class="text-right">操作</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="py-14 text-center text-gray-500">尚无 Profile，请先创建或导入。</td></tr>'}</tbody></table></div>
     </section>
   </div>`;
 }
@@ -182,8 +208,8 @@ function renderDetail() {
   const view = document.getElementById("view-detail");
   const profile = profileById(state.detailProfileId);
   if (!profile) { view.innerHTML = imageState("Profile 不存在", "fa-regular fa-circle-xmark", true); return; }
-  view.innerHTML = `<div class="max-w-6xl mx-auto space-y-6"><button type="button" data-action="back-overview" class="text-sm text-gray-600"><i class="fa-solid fa-arrow-left mr-2"></i>返回总览</button><header><div class="flex flex-wrap items-center gap-3"><h1 class="text-3xl font-bold">${escapeHtml(profile.name)}</h1>${profile.active ? '<span class="px-3 py-1 bg-mint-100 text-mint-700 rounded-full text-xs">当前启用</span>' : ""}</div><code class="block mt-3 bg-mint-50 border border-mint-100 px-4 py-2 rounded-lg break-all">${escapeHtml(profile.profileDir)}</code></header>
-    <div class="flex flex-wrap gap-3">${actionButton(profile.browserStatus === "open" ? "close-browser" : "open-browser", profile.profileId, profile.browserStatus === "open" ? "关闭浏览器" : "打开浏览器", "fa-brands fa-chrome")}${actionButton("check", profile.profileId, "重新检测", "fa-solid fa-rotate", false, "quiet")}${actionButton("backup-profile", profile.profileId, "创建独立备份", "fa-solid fa-box-archive", false, "quiet")}${actionButton("edit", profile.profileId, "编辑", "fa-solid fa-pen", false, "quiet")}</div>
+  view.innerHTML = `<div class="max-w-6xl mx-auto space-y-6"><button type="button" data-action="back-overview" class="text-sm text-gray-600"><i class="fa-solid fa-arrow-left mr-2"></i>返回总览</button><header><div class="flex flex-wrap items-center gap-3"><h1 class="text-3xl font-bold">${escapeHtml(profile.name)}</h1>${profile.active ? '<span class="px-3 py-1 bg-mint-100 text-mint-700 rounded-full text-xs">当前启用</span>' : ""}</div><div class="mt-3 flex items-start gap-2"><code class="min-w-0 flex-1 bg-mint-50 border border-mint-100 px-4 py-2 rounded-lg break-all">${escapeHtml(profile.profileDir)}</code><span class="profile-path-status ${profile.pathStatus === "ok" ? "profile-path-ok" : "profile-path-error"}">${escapeHtml(pathLabels[profile.pathStatus] ?? "路径未知")}</span></div></header>
+    <div class="flex flex-wrap gap-3">${browserAction(profile)}${actionButton("check", profile.profileId, "检测状态", "fa-solid fa-stethoscope", profile.taskBusy || profile.browserStatus === "closing", "quiet")}${actionButton("backup-profile", profile.profileId, "创建独立备份", "fa-solid fa-box-archive", false, "quiet")}${actionButton("edit", profile.profileId, "编辑", "fa-solid fa-pen", false, "quiet")}</div>
     <section class="grid md:grid-cols-3 gap-5">${[["账号状态", `${loginLabels[profile.loginStatus]} · ${membershipLabels[profile.membership]}`], ["浏览器状态", `${browserLabels[profile.browserStatus]}${profile.taskBusy ? " · 任务占用" : ""}`], ["时间信息", `创建 ${formatDate(profile.createdAt)} · 检测 ${formatDate(profile.lastCheckedAt)}`]].map(([title, value]) => `<div class="bg-white border border-gray-100 rounded-2xl p-6 shadow-soft"><h2 class="text-sm text-mint-700 font-semibold">${escapeHtml(title)}</h2><p class="mt-4 text-gray-800">${escapeHtml(value)}</p></div>`).join("")}</section>
     <section class="border border-red-200 bg-red-50 rounded-2xl p-6 flex flex-col sm:flex-row justify-between gap-4"><div><h2 class="font-bold text-red-700">删除整个 Profile 和 Chrome 数据</h2><p class="text-sm text-red-700 mt-2">此操作不可恢复，只能在本页面完成两次确认。</p></div>${actionButton("delete-profile", profile.profileId, "删除 Profile", "fa-regular fa-trash-can", profile.active || profile.taskBusy || profile.browserStatus !== "closed", "danger")}</section>
   </div>`;
@@ -217,12 +243,35 @@ window.closeImageModal = closeImageModal;
 
 function closeProfileModal() { document.getElementById("profile-modal")?.classList.remove("active"); document.body.style.overflow = ""; }
 
+function openProfileSwitchModal() {
+  const modal = document.getElementById("profile-modal");
+  const entries = state.profiles.map((profile) => {
+    const disabled = profile.active || profile.taskBusy || profile.browserStatus === "closing" || !eligible(profile) || profile.pathStatus && profile.pathStatus !== "ok";
+    const reason = profile.active ? "当前已启用" : profile.taskBusy ? "任务占用中" : profile.browserStatus === "closing" ? "浏览器正在关闭" : !eligible(profile) ? `${loginLabels[profile.loginStatus] ?? "账号未就绪"} · ${membershipLabels[profile.membership] ?? "会员资格未知"}` : profile.pathStatus && profile.pathStatus !== "ok" ? (pathLabels[profile.pathStatus] ?? "路径异常") : "可启用";
+    return `<li class="profile-switch-item"><div class="profile-switch-copy"><strong>${escapeHtml(profile.name)}</strong><span>${escapeHtml(reason)}</span><small>${escapeHtml(browserLabels[profile.browserStatus] ?? "状态未知")} · ${escapeHtml(profile.accountLabel || profile.notes || "无备注")}</small></div><button type="button" data-action="activate" data-profile-id="${escapeHtml(profile.profileId)}" class="h-9 px-3 rounded-lg border text-sm font-medium ${disabled ? "bg-gray-50 text-gray-400 border-gray-200" : "bg-mint-600 text-white border-mint-600"}" ${disabled ? "disabled" : ""}>${profile.active ? "已启用" : "启用"}</button></li>`;
+  }).join("");
+  modal.innerHTML = `<div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden modal-content"><div class="px-6 py-4 border-b flex justify-between items-center"><div><h2 class="font-bold">切换 Profile</h2><p class="text-xs text-gray-500 mt-1">一次只保留一个启用 Profile；切换不会自动打开浏览器。</p></div><button type="button" data-action="close-profile-modal" title="关闭" class="w-8 h-8"><i class="fa-solid fa-xmark"></i></button></div><div class="p-6"><ul class="profile-switch-list">${entries || '<li class="py-10 text-center text-gray-500">尚无 Profile</li>'}</ul></div><div class="p-6 border-t flex justify-end"><button type="button" data-action="close-profile-modal" class="h-10 px-5 border border-gray-200 rounded-full">关闭</button></div></div>`;
+  modal.classList.add("active");
+  document.body.style.overflow = "hidden";
+}
+
 function openProfileModal(profileId = null) {
   const profile = profileId ? profileById(profileId) : null;
   const modal = document.getElementById("profile-modal");
-  modal.innerHTML = `<div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden modal-content"><form id="profile-form"><div class="px-6 py-4 border-b flex justify-between"><h2 class="font-bold">${profile ? "编辑 Profile" : "创建或导入 Profile"}</h2><button type="button" data-action="close-profile-modal" title="关闭" class="w-8 h-8"><i class="fa-solid fa-xmark"></i></button></div><div class="p-6 space-y-4"><div class="bg-red-50 border border-red-100 rounded-lg p-3 text-sm text-red-800">禁止导入日常 Chrome Profile。系统只接受本项目归属标记有效的专用目录。</div><input type="hidden" name="profileId" value="${escapeHtml(profile?.profileId ?? "")}"/><label class="block text-sm font-semibold">Profile 名称<input required name="name" maxlength="80" value="${escapeHtml(profile?.name ?? "")}" class="mt-1 w-full h-10 px-3 border border-gray-200 rounded-lg"/></label><label class="block text-sm font-semibold">账号备注<input name="accountLabel" value="${escapeHtml(profile?.accountLabel ?? "")}" class="mt-1 w-full h-10 px-3 border border-gray-200 rounded-lg"/></label><label class="block text-sm font-semibold">普通备注<textarea name="notes" class="mt-1 w-full min-h-20 px-3 py-2 border border-gray-200 rounded-lg">${escapeHtml(profile?.notes ?? "")}</textarea></label>${profile ? "" : '<fieldset class="space-y-2"><label class="block"><input type="radio" name="mode" value="create" checked class="mr-2"/>创建新的专用 Profile</label><label class="block"><input type="radio" name="mode" value="import" class="mr-2"/>导入已有专用 Profile</label></fieldset><label class="block text-sm font-semibold">导入目录（仅导入时）<input name="profileDir" class="mt-1 w-full h-10 px-3 border border-gray-200 rounded-lg" placeholder="本机绝对路径"/></label>'}</div><div class="p-6 border-t flex justify-end gap-3"><button type="button" data-action="close-profile-modal" class="h-10 px-5 border rounded-full">取消</button><button name="openAfterSave" value="true" class="h-10 px-5 border border-mint-200 text-mint-700 rounded-full">保存并打开</button><button class="h-10 px-6 bg-mint-600 text-white rounded-full">保存</button></div></form></div>`;
+  modal.innerHTML = `<div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden modal-content"><form id="profile-form"><div class="px-6 py-4 border-b flex justify-between"><h2 class="font-bold">${profile ? "编辑 Profile" : "创建或导入 Profile"}</h2><button type="button" data-action="close-profile-modal" title="关闭" class="w-8 h-8"><i class="fa-solid fa-xmark"></i></button></div><div class="p-6 space-y-4"><div class="bg-red-50 border border-red-100 rounded-lg p-3 text-sm text-red-800"><i class="fa-solid fa-shield-halved mr-2"></i>禁止导入日常 Chrome Profile，只接受本项目归属标记有效的专用目录。</div><input type="hidden" name="profileId" value="${escapeHtml(profile?.profileId ?? "")}"/><label class="block text-sm font-semibold">Profile 名称<input required name="name" maxlength="80" value="${escapeHtml(profile?.name ?? "")}" class="mt-1 w-full h-10 px-3 border border-gray-200 rounded-lg"/></label><label class="block text-sm font-semibold">账号备注<input name="accountLabel" value="${escapeHtml(profile?.accountLabel ?? "")}" class="mt-1 w-full h-10 px-3 border border-gray-200 rounded-lg"/></label><label class="block text-sm font-semibold">普通备注<textarea name="notes" class="mt-1 w-full min-h-20 px-3 py-2 border border-gray-200 rounded-lg">${escapeHtml(profile?.notes ?? "")}</textarea></label>${profile ? "" : '<fieldset class="space-y-2" aria-label="Profile 来源"><label class="block"><input type="radio" name="mode" value="create" checked class="mr-2"/>创建新的专用 Profile</label><label class="block"><input type="radio" name="mode" value="import" class="mr-2"/>导入已有专用 Profile</label></fieldset><label id="profile-dir-field" class="hidden block text-sm font-semibold">导入目录（仅导入时）<input name="profileDir" class="mt-1 w-full h-10 px-3 border border-gray-200 rounded-lg" placeholder="本机绝对路径，支持空格、中文和 Windows 分隔符"/></label>'}</div><div class="p-6 border-t flex justify-end gap-3"><button type="button" data-action="close-profile-modal" class="h-10 px-5 border rounded-full">取消</button><button type="submit" name="openAfterSave" value="true" class="h-10 px-5 border border-mint-200 text-mint-700 rounded-full">保存并打开</button><button type="submit" class="h-10 px-6 bg-mint-600 text-white rounded-full">保存</button></div></form></div>`;
   modal.classList.add("active");
   document.body.style.overflow = "hidden";
+  syncProfileModalMode();
+}
+
+function syncProfileModalMode() {
+  const form = document.getElementById("profile-form");
+  const field = document.getElementById("profile-dir-field");
+  if (!form || !field) return;
+  const mode = form.elements.namedItem("mode")?.value;
+  field.classList.toggle("hidden", mode !== "import");
+  const input = form.elements.namedItem("profileDir");
+  if (input && "required" in input) input.required = mode === "import";
 }
 
 function closeImageModal() { document.getElementById("image-detail-modal")?.classList.remove("active"); document.body.style.overflow = ""; }
@@ -280,25 +329,32 @@ async function loadImages(page = 1) {
   renderImages();
 }
 
-async function refreshAll(showMessage = false) {
-  try {
-    const [profiles, directory, backups] = await Promise.all([api("/profiles"), api("/directories"), api("/backups")]);
-    state.profiles = profiles.profiles;
-    state.activeProfileId = profiles.activeProfileId;
-    state.directory = directory;
-    state.backups = backups.backups;
-    if (state.selectedProfileId && !profileById(state.selectedProfileId)) state.selectedProfileId = null;
-    if (state.detailProfileId && !profileById(state.detailProfileId)) state.detailProfileId = null;
-    renderAll();
-    if (state.selectedProfileId) await loadImages();
-    if (showMessage) notify("本地状态已刷新并完成目录扫描");
-  } catch (error) {
-    renderAll();
-    notify(error.message, "error");
-  }
+let refreshTail = Promise.resolve();
+
+function refreshAll(showMessage = false) {
+  const operation = refreshTail.then(async () => {
+    try {
+      const [profiles, directory, backups] = await Promise.all([api("/profiles"), api("/directories"), api("/backups")]);
+      state.profiles = profiles.profiles;
+      state.activeProfileId = profiles.activeProfileId;
+      state.directory = directory;
+      state.backups = backups.backups;
+      if (state.selectedProfileId && !profileById(state.selectedProfileId)) state.selectedProfileId = null;
+      if (state.detailProfileId && !profileById(state.detailProfileId)) state.detailProfileId = null;
+      renderAll();
+      if (state.selectedProfileId) await loadImages();
+      if (showMessage) notify("本地状态已刷新并完成目录扫描", "success");
+    } catch (error) {
+      renderAll();
+      notify(error.message, "error");
+    }
+  });
+  refreshTail = operation.catch(() => undefined);
+  return operation;
 }
 
 document.addEventListener("change", (event) => {
+  if (event.target.name === "mode" && event.target.closest("#profile-form")) syncProfileModalMode();
   if (event.target.id === "image-profile-select") {
     state.selectedProfileId = event.target.value || null;
     state.imageFilters = {};
@@ -320,30 +376,47 @@ document.addEventListener("submit", async (event) => {
       else profile = await api("/profiles", { method: "POST", body: JSON.stringify({ name: data.name, accountLabel: data.accountLabel || null, notes: data.notes || null }) });
       closeProfileModal();
       await refreshAll();
+      notify(data.profileId ? "Profile 信息已更新" : data.mode === "import" ? "专用 Profile 已导入" : "专用 Profile 已创建", "success");
       if (submitter?.name === "openAfterSave") await performProfileAction("open-browser", profile.profileId);
-    } catch (error) { notify(error.message, "error"); }
+    } catch (error) { notify(error.message, ["LOGIN_REQUIRED", "VERIFICATION_REQUIRED", "MEMBERSHIP_INELIGIBLE", "PROFILE_PATH_INVALID"].includes(error.code) ? "warning" : "error"); }
   }
   if (event.target.id === "directory-form") {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.target));
     if (!window.confirm(`确认以“${data.mode === "migrate" ? "迁移" : "保留"}”方式切换默认目录？`)) return;
-    try { await api(`/directories/${data.mode}`, { method: "POST", body: JSON.stringify({ targetRootDir: data.targetRootDir }) }); await refreshAll(); notify("默认目录已更新"); }
+    try { await api(`/directories/${data.mode}`, { method: "POST", body: JSON.stringify({ targetRootDir: data.targetRootDir }) }); await refreshAll(); notify("默认目录已更新", "success"); }
     catch (error) { notify(error.message, "error"); }
   }
   if (event.target.id === "image-filter-form") { event.preventDefault(); loadImages(); }
 });
 
 async function performProfileAction(action, profileId) {
+  const profile = profileById(profileId);
   try {
     if (action === "detail") { state.detailProfileId = profileId; renderDetail(); setView("detail"); return; }
     if (action === "edit") { openProfileModal(profileId); return; }
     if (action === "activate") await api(`/profiles/${encodeURIComponent(profileId)}/activate`, { method: "POST" });
     if (action === "check") await api(`/profiles/${encodeURIComponent(profileId)}/check`, { method: "POST" });
     if (action === "open-browser") await api(`/profiles/${encodeURIComponent(profileId)}/open`, { method: "POST" });
-    if (action === "close-browser") await api(`/profiles/${encodeURIComponent(profileId)}/close`, { method: "POST" });
-    if (action === "backup-profile") { await api(`/profiles/${encodeURIComponent(profileId)}/backups`, { method: "POST" }); notify("完整备份已创建"); }
+    if (action === "close-browser") {
+      if (profile && profile.browserStatus !== "closed") {
+        profile.browserStatus = "closing";
+        renderAll();
+        notify("正在关闭项目专用 Chrome…", "info");
+      }
+      await api(`/profiles/${encodeURIComponent(profileId)}/close`, { method: "POST" });
+    }
+    if (action === "backup-profile") { await api(`/profiles/${encodeURIComponent(profileId)}/backups`, { method: "POST" }); notify("完整备份已创建", "success"); }
+    if (action === "activate") { closeProfileModal(); notify(`已启用 ${profile?.name ?? "Profile"}，未自动打开浏览器`, "success"); }
+    if (action === "check") notify("状态检测完成，临时检测会话已清理", "success");
+    if (action === "open-browser") notify("项目专用 Chrome 已打开", "success");
+    if (action === "close-browser") notify("项目专用 Chrome 已关闭", "success");
     await refreshAll();
-  } catch (error) { notify(error.message, "error"); }
+  } catch (error) {
+    await refreshAll().catch(() => undefined);
+    const warningCodes = ["LOGIN_REQUIRED", "VERIFICATION_REQUIRED", "MEMBERSHIP_INELIGIBLE", "PROFILE_PATH_INVALID", "PROFILE_BUSY", "BROWSER_LEASED", "BROWSER_BUSY"];
+    notify(error.message, warningCodes.includes(error.code) ? "warning" : "error");
+  }
 }
 
 document.addEventListener("click", async (event) => {
@@ -353,7 +426,9 @@ document.addEventListener("click", async (event) => {
   const profileId = button.dataset.profileId;
   if (["detail", "edit", "activate", "check", "open-browser", "close-browser", "backup-profile"].includes(action)) return performProfileAction(action, profileId);
   if (action === "create") return openProfileModal();
+  if (action === "switch-profile") return openProfileSwitchModal();
   if (action === "close-profile-modal") return closeProfileModal();
+  if (action === "close-toast") { const item = button.closest(".manager-toast"); if (item) { const timer = Number(item.dataset.dismissTimer); if (timer) window.clearTimeout(timer); item.remove(); } return; }
   if (action === "back-overview") return setView("overview");
   if (action === "nav-view") return setView(button.dataset.view);
   if (action === "refresh") return refreshAll(true);
@@ -385,7 +460,7 @@ document.addEventListener("click", async (event) => {
     if (!profile || !window.confirm(`第一次确认：删除 ${profile.name} 及全部 Chrome 数据？`)) return;
     const typed = window.prompt(`第二次确认：请输入 Profile 名称“${profile.name}”`);
     if (typed !== profile.name) return notify("名称不匹配，删除已取消", "error");
-    try { const issued = await api(`/profiles/${encodeURIComponent(profileId)}/delete-confirmation`, { method: "POST", body: JSON.stringify({ profileName: typed }) }); await api(`/profiles/${encodeURIComponent(profileId)}`, { method: "DELETE", headers: { "X-Delete-Confirmation": issued.confirmation } }); state.detailProfileId = null; setView("overview"); await refreshAll(); notify("Profile 已删除"); } catch (error) { notify(error.message, "error"); }
+    try { const issued = await api(`/profiles/${encodeURIComponent(profileId)}/delete-confirmation`, { method: "POST", body: JSON.stringify({ profileName: typed }) }); await api(`/profiles/${encodeURIComponent(profileId)}`, { method: "DELETE", headers: { "X-Delete-Confirmation": issued.confirmation } }); state.detailProfileId = null; setView("overview"); await refreshAll(); notify("Profile 已删除", "success"); } catch (error) { notify(error.message, "error"); }
   }
   if (action === "scan-images") {
     if (!state.selectedProfileId) return;
