@@ -9,6 +9,7 @@ import { ProfileRegistryStore } from "../../src/profiles/registry.js";
 import { ProfileManager } from "../../src/profiles/manager.js";
 import { inspectChrome } from "../../src/platform/chrome.js";
 import { readBrowserEligibility, startManagerServer, type ManagerBrowserController } from "../../src/manager/server.js";
+import { BrowserLeaseError } from "../../src/browser/browser-lease.js";
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "gpt-web-image-manager-api-"));
@@ -77,6 +78,30 @@ test("manager startup clears a stale open browser status when no live lease exis
   } finally {
     await server.close().catch(() => undefined);
   }
+});
+
+test("manager reports a concurrent BrowserLease conflict as a 409", async () => {
+  const { server, baseUrl, browser } = await fixture();
+  try {
+    const created = await json(baseUrl, "/profiles", { method: "POST", body: JSON.stringify({ name: "并发检查", accountLabel: null }) });
+    assert.equal(created.response.status, 201);
+    let activeChecks = 0;
+    browser.check = async () => {
+      if (activeChecks > 0) throw new BrowserLeaseError("BROWSER_LEASED");
+      activeChecks += 1;
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      activeChecks -= 1;
+      return { login: "logged_in", membership: "plus", evidenceKinds: ["fixture"], checkedAt: new Date().toISOString(), eligible: true };
+    };
+    const profileId = created.body.profileId as string;
+    const responses = await Promise.all([
+      json(baseUrl, `/profiles/${profileId}/check`, { method: "POST" }),
+      json(baseUrl, `/profiles/${profileId}/check`, { method: "POST" })
+    ]);
+    assert.deepEqual(responses.map(({ response }) => response.status).sort(), [200, 409]);
+    const conflict = responses.find(({ response }) => response.status === 409);
+    assert.equal(conflict?.body.error.code, "BROWSER_LEASED");
+  } finally { await server.close(); }
 });
 
 test("T51 listens only on loopback and exposes schema-limited Profile lifecycle APIs", async () => {

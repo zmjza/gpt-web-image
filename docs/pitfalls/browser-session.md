@@ -159,3 +159,19 @@
 **相关文件或命令**：`src/browser/browser-lease.ts`、`src/manager/server.ts`、`src/profiles/manager.ts`、`tests/manager/server.test.ts`、`ps -axo pid,ppid,command`、`node dist/src/cli.js doctor --json`。
 
 **适用范围**：macOS ARM64 和 Windows x64 的管理服务重启、异常退出、专用浏览器生命周期和多 Profile 状态展示。
+
+## BrowserLease 并发冲突必须保留明确的 API 错误码
+
+**现象**：两个管理页面请求同时检查同一 Profile 时，一个请求正常完成，另一个请求因专用浏览器租约已被占用而失败；如果服务端错误白名单漏掉 `BROWSER_LEASED`，客户端只能收到脱敏的 500 `INTERNAL_ERROR`，无法区分可重试的资源冲突。
+
+**根因**：`BrowserLeaseError` 携带了 `BROWSER_LEASED` code，HTTP 状态映射已经定义为 409，但 `safeError()` 的已知错误集合没有包含该 code，导致错误码被降级为通用 500。
+
+**正确做法**：所有由租约层定义并在 HTTP 状态映射中声明的冲突 code，都必须同时加入服务端安全错误白名单；返回 409 和脱敏 code，不暴露锁文件、PID、Profile 内容或认证数据。
+
+**验证方式**：并发调用同一 Profile 的 `/api/profiles/:profileId/check`，一个响应为 200，另一个响应为 409 且 `error.code=BROWSER_LEASED`；运行 `node --test --test-concurrency=1 dist/tests/manager/server.test.js`。
+
+**禁止事项**：不得把租约冲突伪装成登录失败或成功；不得为了消除 500 绕过 BrowserLease、启动第二个专用 Chrome、自动重试网页提交或输出租约内部数据。
+
+**相关文件或命令**：`src/browser/browser-lease.ts`、`src/manager/server.ts`、`tests/manager/server.test.ts`、`/api/profiles/:profileId/check`。
+
+**适用范围**：Profile 资格检查、打开浏览器、后台生图和任何共享专用 Chrome 的管理 API 并发请求。
