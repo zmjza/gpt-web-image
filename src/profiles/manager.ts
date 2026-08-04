@@ -201,6 +201,21 @@ export class ProfileManager {
     return updated as ProfileRecord;
   }
 
+  public async reconcileBrowserStatuses(activeLease: { profileId: string } | null): Promise<number> {
+    const registry = await this.store.read();
+    if (!registry.profiles.some((profile) => profile.browserStatus === "open" && activeLease?.profileId !== profile.profileId)) return 0;
+    let cleared = 0;
+    await this.store.transaction((current) => ({
+      ...current,
+      profiles: current.profiles.map((profile) => {
+        if (profile.browserStatus !== "open" || activeLease?.profileId === profile.profileId) return profile;
+        cleared += 1;
+        return { ...profile, browserStatus: "closed" as const, updatedAt: new Date().toISOString() };
+      })
+    }));
+    return cleared;
+  }
+
   public issueDeleteConfirmation(profileId: string, source: "page" | "automation"): string {
     if (source !== "page") throw new ProfileManagerError("DELETE_CONFIRMATION_FORBIDDEN");
     const token = randomUUID();

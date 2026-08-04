@@ -127,3 +127,19 @@
 **相关文件或命令**：`src/manager/public/styles.css`、`tests/manager/ui-shell.test.ts`、`npm run preview:manager`、`.playwright/manager-tablet-2026-08-04-fixed.png`。
 
 **适用范围**：所有从 Stitch UI 壳承接的平板顶部导航和共享管理页面。
+
+## 图片目录权限问题不能显示为空 Profile
+
+**现象**：扫描目录没有读取权限时，索引可能仍返回空记录；如果页面只看图片列表 `total=0`，用户会误以为 Profile 没有图片。
+
+**根因**：扫描问题记录在 Profile 索引的 `issues` 中，而图片查询结果只表达筛选后的记录数量，两个层次不能混用。
+
+**正确做法**：选中 Profile 后同时读取该 Profile 的 `index-status`，仅显示脱敏问题类型；`PERMISSION_DENIED`、文件缺失、损坏、读取失败和符号链接忽略必须有明确提示，且不能显示认证数据或绝对根路径。
+
+**验证方式**：隔离临时目录改为 `000` 权限后，真实本地管理 API 返回 `issues[0].code=PERMISSION_DENIED`；`tests/manager/ui-shell.test.ts` IMG-4 相关测试 8/8 通过。
+
+**禁止事项**：不得把权限问题归类为 Profile 空库；不得把完整异常日志、Cookie、Token 或用户路径塞进页面；不得为制造权限证据修改真实 Profile 权限。
+
+**相关文件或命令**：`src/images/manager-scanner.ts`、`src/manager/server.ts`、`src/manager/public/app.js`、`/profiles/:profileId/images/index-status`。
+
+**适用范围**：macOS/Windows 图片管理扫描、空态、错误态和 Profile 切换。

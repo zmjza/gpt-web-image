@@ -48,6 +48,22 @@
 
 **适用范围**：macOS 台前调度和 Windows 多窗口环境下的专用 Profile 后台任务。
 
+## macOS 不能只依赖 --start-minimized 或 CDP bounds
+
+**现象**：macOS 正式 Chrome 使用 `--start-minimized` 启动后，CDP `Browser.getWindowBounds` 仍报告 `windowState=normal`；继续导航也可能让窗口回到前台，影响台前调度。
+
+**根因**：当前 Chrome macOS 版本会忽略 CDP `Browser.setWindowBounds(windowState=minimized)` 的状态写入；命令行最小化参数也不保证 Accessibility 窗口状态。
+
+**正确做法**：后台启动完成目标 URL 导航后，在当前页面临时设置一次随机 UUID 标题；通过 `osascript` 遍历 Chrome 窗口中的标签页，只将标题完全匹配的专用窗口设为 `visible=false`，随后恢复原页面标题。Windows/其他平台使用 CDP 窗口最小化。任何定位失败都让任务失败并释放专用进程/锁，不静默显示窗口。
+
+**验证方式**：隔离 Chrome 窗口集成测试 13/13 通过；真实魏邦 Profile 只打开 ChatGPT、不提交任务，唯一标记窗口返回 `matched=true, visible=false`，关闭后项目 Chrome/锁为 0。真实日常 Chrome 不按应用级 AppleScript 操作。
+
+**禁止事项**：不得按整个 Google Chrome 应用隐藏、最小化或退出；不得用固定窗口序号、坐标或用户窗口标题猜测目标；不得把 `--start-minimized` 或 CDP 返回成功当作 macOS 已隐藏证据。
+
+**相关文件或命令**：`src/browser/profile.ts`、`tests/integration/web-flow.test.ts`、`node dist/src/cli.js generate`、`ps -axo pid,ppid,command`。
+
+**适用范围**：macOS 台前调度、真实 ChatGPT 后台生图、人工接管和专用 Chrome 生命周期。
+
 ## 普通 Chrome 的登录不会迁移到专用 Profile
 
 **现象**：用户记得已经在 Chrome 登录，但项目专用页面仍显示“登录/免费注册”；专用目录和 Chrome 文件仍存在，普通 Chrome 也可能同时打开多个个人资料。
@@ -111,3 +127,35 @@
 **相关文件或命令**：`src/browser/profile-lock.ts`、`src/browser/browser-lease.ts`、`src/cli.ts`、`node dist/src/cli.js resume`、`node dist/src/cli.js doctor --json`、`ps -axo pid,ppid,command`。
 
 **适用范围**：macOS ARM64 和 Windows x64 的提交前/提交后中断、恢复、取消和专用 Chrome 生命周期。
+
+## macOS Chrome 标签标题传播需要有限轮询
+
+**现象**：后台专用 Chrome 已连接且页面脚本刚设置随机标题，但 AppleScript 立即扫描标签页时可能返回找不到专用窗口；并行测试中出现低概率失败。
+
+**根因**：浏览器协议中的 `document.title` 更新与 macOS Chrome AppleScript 窗口模型不是同步可见的，单次查询存在传播竞态。
+
+**正确做法**：只对带随机 UUID 标记的目标标签执行有界轮询；命中后隐藏该窗口并恢复原标题，超出预算仍安全失败并关闭专用进程。不能退化为全局隐藏 Chrome。
+
+**验证方式**：`tests/browser/session.test.ts` 模拟前两次返回 false、第三次返回 true；`tests/integration/web-flow.test.ts` 真实 Chrome 集成 13/13 通过；真实魏邦 Profile 无提交窗口返回 `visible=false`，锁和 lease 为 0。
+
+**禁止事项**：不得固定延时无限等待；不得按窗口索引或标题模糊匹配其他 Chrome；不得在定位失败时留下进程、锁或临时标题。
+
+**相关文件或命令**：`src/browser/profile.ts`、`hideMacWindowByTitle`、`npm test`、`node --test dist/tests/integration/web-flow.test.js`。
+
+**适用范围**：macOS 台前调度、后台任务启动、窗口隐藏和专用 Chrome 关闭/重开。
+
+## 管理服务重启必须恢复陈旧的浏览器状态
+
+**现象**：管理服务或浏览器进程异常退出后，Profile 注册表可能仍保存 `browserStatus=open`；实际没有项目专用 Chrome、Profile 锁或 BrowserLease，页面却继续显示“运行中”。
+
+**根因**：浏览器状态写入注册表与进程/lease 生命周期不是同一个原子操作；异常退出时正常的 `close` 回写可能没有执行。仅凭注册表字段不能证明浏览器仍在运行。
+
+**正确做法**：管理服务启动时读取唯一 BrowserLease，只有 lease 记录的 PID 仍存活时才保留对应 Profile 的 `open` 状态；其余陈旧 `open` 状态恢复为 `closed`。不要触碰 Profile 内容，也不要清理 `task_busy` 或用户日常 Chrome。
+
+**验证方式**：先在 `tests/manager/server.test.ts` 将 Profile 状态设为 `open`，关闭服务且不创建 lease，再重启服务并读取 `/api/profiles`，状态应为 `closed`；真实复测同时检查 `ps`、Profile 锁、BrowserLease 和 `doctor --json`。
+
+**禁止事项**：不得手工改真实注册表来掩盖问题；不得按 Chrome 应用进程总数判断项目浏览器；不得因为状态陈旧而删除、迁移、覆盖或重建 Profile；不得清理仍由存活 lease 持有的 Profile。
+
+**相关文件或命令**：`src/browser/browser-lease.ts`、`src/manager/server.ts`、`src/profiles/manager.ts`、`tests/manager/server.test.ts`、`ps -axo pid,ppid,command`、`node dist/src/cli.js doctor --json`。
+
+**适用范围**：macOS ARM64 和 Windows x64 的管理服务重启、异常退出、专用浏览器生命周期和多 Profile 状态展示。

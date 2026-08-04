@@ -32,6 +32,22 @@
 
 **适用范围**：真实 ChatGPT 图片任务的提交确认、路由切换、回复绑定、图片发现、下载和逐张回显。
 
+## 中断恢复不得把临时 WEB 会话当作稳定锚点
+
+**现象**：任务已经确认提交，但中断后 `resume` 重开专用 Profile 只能进入 `result_uncertain`，无法找到原助手回合；没有图片文件，也没有第二次提交。
+
+**根因**：任务记录的 `chatUrl` 仍是 `https://chatgpt.com/c/WEB:...` 临时地址，浏览器重启后该地址不保证对应正式会话；即使 `assistantTurnOrdinal` 已存在，也不能据此在错误页面上继续观察。
+
+**正确做法**：只有稳定 UUID 会话 URL 与提交确认、响应锚点同时存在时才执行恢复观察；临时 `WEB:` 地址必须保持不确定并停止网页写操作，不得自动新建任务或重提提示词。稳定地址未落盘时，将这次结果记录为恢复失败并用新的唯一任务重新验证。
+
+**验证方式**：真实任务 `task_msdjxoti_el12dplo` 的 `resume` 输出 `recovering` 后为 `PAGE_STRUCTURE_CHANGED: assistant turn`，`task.json` 结果仍为 0、没有 `image_ready` 和原图，且没有第二次提交；此前稳定 UUID 的恢复任务仍按 4.2 证据单独记录。
+
+**禁止事项**：不得把 `WEB:` URL 写成稳定恢复证据；不得通过枚举旧标签页、读取完整聊天历史或盲目发送相同提示词来“找回”结果；不得将 `result_uncertain` 改写成成功。
+
+**相关文件或命令**：`src/cli.ts`、`src/chatgpt/web-flow.ts`、`src/persistence/recover.ts`、`node dist/src/cli.js resume --task-id <taskId>`、`liran_docs/09-真机实测.md`。
+
+**适用范围**：macOS/Windows 真实 ChatGPT 提交后中断、恢复观察、图片下载和实时回显。
+
 ## 提交指纹必须剥离中文展示控件文本
 
 **现象**：真实 ChatGPT 中文界面已经把 refine 用户消息提交到会话，但确认阶段返回 `SUBMISSION_UNCERTAIN`；页面中的用户回合文本形如 `你说：<真实提示词>展开收起`。

@@ -46,6 +46,11 @@ export class BrowserLease {
 
   public status(): Promise<BrowserLeaseRecord | null> { return readLease(this.path); }
 
+  public async liveStatus(): Promise<BrowserLeaseRecord | null> {
+    const existing = await readLease(this.path);
+    return existing && processAlive(existing.pid) ? existing : null;
+  }
+
   public async acquire(): Promise<void> {
     await mkdir(resolve(this.path, ".."), { recursive: true });
     for (let attempt = 0; attempt < 2; attempt += 1) {

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { buildHeadedChromeArgs, ensureOwnedProfile, profileMarkerPath } from "../../src/browser/profile.js";
+import { buildHeadedChromeArgs, ensureOwnedProfile, hideMacWindowByTitle, profileMarkerPath } from "../../src/browser/profile.js";
 import { LoginReadinessTracker, classifyLoginPage, isVerificationChallenge } from "../../src/browser/login.js";
 import { createHandoffPlan } from "../../src/browser/handoff.js";
 
@@ -59,6 +59,30 @@ test("T17 runs normal tasks in minimized ordinary Chrome without headless finger
   const args = buildHeadedChromeArgs(resolve("dedicated profile"), "https://chatgpt.com/", 43124, true);
   assert.equal(args.includes("--start-minimized"), true);
   assert.equal(args.some((argument) => /--headless|--enable-automation|--no-sandbox/.test(argument)), false);
+});
+
+test("T17 retries the macOS window marker while Chrome propagates the title", async () => {
+  let attempts = 0;
+  await hideMacWindowByTitle("gpt-web-image-marker", {
+    intervalMs: 0,
+    maxAttempts: 3,
+    run: () => (++attempts >= 3 ? "true\n" : "false\n")
+  });
+  assert.equal(attempts, 3);
+});
+
+test("T17 retries a transient macOS AppleScript connection error", async () => {
+  let attempts = 0;
+  await hideMacWindowByTitle("gpt-web-image-marker", {
+    intervalMs: 0,
+    maxAttempts: 3,
+    run: () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error("connection is invalid (-609)");
+      return attempts === 3 ? "true\n" : "false\n";
+    }
+  });
+  assert.equal(attempts, 3);
 });
 
 test("T18 requires a stable interactive composer, not a URL redirect", () => {

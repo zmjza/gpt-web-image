@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { access, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -31,6 +32,42 @@ test("T17 closes a dedicated Chrome before immediately reopening the same profil
     await fixture.close();
   }
 });
+
+test("T17 minimizes only the dedicated Chrome window for background sessions", { skip: !chrome.available }, async () => {
+  const fixture = await startFixtureServer();
+  const profileDir = await mkdtemp(join(tmpdir(), "gwi-minimized-window-"));
+  let session: Awaited<ReturnType<typeof launchProfile>> | undefined;
+  try {
+    session = await launchProfile({ profileDir, executablePath: chrome.path as string, headed: false, url: fixture.url });
+    if (process.platform === "darwin") {
+      const script = [
+        'tell application "Google Chrome"',
+        "set states to {}",
+        "repeat with w in windows",
+        "repeat with t in tabs of w",
+        'if (title of t) is "Controlled ChatGPT Fixture" then set end of states to (visible of w)',
+        "end repeat",
+        "end repeat",
+        "return states as text",
+        "end tell"
+      ].join("\n");
+      assert.equal(execFileSync("osascript", ["-e", script], { encoding: "utf8" }).trim(), "false");
+    } else {
+      const client = await session.context.newCDPSession(session.page);
+      try {
+        const { windowId } = await client.send("Browser.getWindowForTarget") as { windowId: number };
+        const { bounds } = await client.send("Browser.getWindowBounds", { windowId }) as { bounds: { windowState: string } };
+        assert.equal(bounds.windowState, "minimized");
+      } finally {
+        await client.detach().catch(() => undefined);
+      }
+    }
+  } finally {
+    await session?.close();
+    await fixture.close();
+  }
+});
+
 test("T37 controlled browser fixture proves queued -> progressive images -> complete", { skip: !chrome.available }, async () => {
   const fixture = await startFixtureServer();
   const browser = await chromium.launch({ executablePath: chrome.path as string, headless: true });

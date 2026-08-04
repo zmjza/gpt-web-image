@@ -7,7 +7,7 @@ const state = {
   detailProfileId: null,
   directory: null,
   backups: [],
-  images: { phase: "unselected", result: null, error: null },
+  images: { phase: "unselected", result: null, error: null, issues: [] },
   imageRequestVersion: 0,
   imageAbortController: null,
   imageFilters: {},
@@ -67,11 +67,24 @@ function notify(message, type = "info") {
 function profileById(profileId) { return state.profiles.find((profile) => profile.profileId === profileId) ?? null; }
 function eligible(profile) { return profile.loginStatus === "logged_in" && ["plus", "pro", "go"].includes(profile.membership); }
 const imageStatusLabels = { completed: "已完成", generating: "生成中", failed: "生成失败", missing: "文件缺失", corrupt: "文件损坏" };
+const imageIssueLabels = {
+  PERMISSION_DENIED: "图片目录权限不足，请检查目录权限后重新扫描。",
+  FILE_MISSING: "发现索引中已不存在的图片文件。",
+  FILE_CORRUPT: "发现无法解码的图片文件。",
+  READ_FAILED: "发现无法读取的图片文件。",
+  SYMLINK_IGNORED: "发现被安全规则忽略的符号链接。"
+};
 
 function imageStatusClass(status) {
   if (status === "completed") return "image-status-success";
   if (status === "generating") return "image-status-processing";
   return "image-status-error";
+}
+
+function imageIssueBanner(issues = []) {
+  const labels = [...new Set(issues.map((issue) => imageIssueLabels[issue?.code]).filter(Boolean))];
+  if (!labels.length) return "";
+  return `<div role="status" class="border border-amber-200 bg-amber-50 text-amber-900 rounded-xl px-4 py-3 text-sm"><i class="fa-solid fa-triangle-exclamation mr-2"></i><strong>图片目录检查：</strong>${labels.map(escapeHtml).join(" ")}</div>`;
 }
 
 function statusBadge(profile) {
@@ -145,6 +158,7 @@ function renderImages() {
   const view = document.getElementById("view-images");
   const profileOptions = state.profiles.map((profile) => `<option value="${escapeHtml(profile.profileId)}" ${state.selectedProfileId === profile.profileId ? "selected" : ""}>${escapeHtml(profile.name)}${profile.active ? "（当前启用）" : ""}</option>`).join("");
   const result = state.images.result;
+  const issueBanner = imageIssueBanner(state.images.issues);
   const records = result?.items ?? [];
   let content = "";
   if (!state.selectedProfileId) content = imageState("请先选择 Profile，选择前不会查询图片。", "fa-regular fa-id-badge");
@@ -154,6 +168,7 @@ function renderImages() {
   else content = records.map((image) => `<article class="group bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-soft cursor-pointer" data-action="image-detail" data-image-id="${escapeHtml(image.imageId)}"><div class="aspect-square bg-gray-100 relative overflow-hidden">${image.status === "completed" ? `<img loading="lazy" class="w-full h-full object-cover" src="/api/profiles/${encodeURIComponent(image.profileId)}/images/${encodeURIComponent(image.imageId)}/content?kind=thumbnail" alt="${escapeHtml(image.fileName)}"/>` : `<div class="h-full flex flex-col gap-3 items-center justify-center text-gray-500"><i class="fa-solid ${image.status === "generating" ? "fa-spinner fa-spin text-mint-600" : image.status === "failed" ? "fa-circle-xmark text-red-500" : "fa-file-circle-exclamation text-amber-500"} text-3xl"></i><span class="text-sm font-medium">${escapeHtml(imageStatusLabels[image.status] ?? image.status)}</span></div>`}<span class="absolute top-2 right-2 image-status ${imageStatusClass(image.status)}">${escapeHtml(imageStatusLabels[image.status] ?? image.status)}</span></div><div class="p-3"><strong class="text-sm block truncate">${escapeHtml(image.fileName)}</strong><p class="text-xs text-mint-700 mt-1 truncate">${escapeHtml(image.projectName || "未归类")} · ${escapeHtml(image.taskName || image.taskId || "无任务")}</p><div class="flex justify-between text-xs text-gray-500 mt-3"><span>${escapeHtml(formatDate(image.generatedAt))}</span><span>${image.width && image.height ? `${image.width}×${image.height}` : "-"}</span></div></div></article>`).join("");
   const projectCount = new Set(records.map((image) => image.projectId).filter(Boolean)).size;
   view.innerHTML = `<div class="image-manager max-w-7xl mx-auto space-y-6"><header class="flex flex-col md:flex-row md:items-end justify-between gap-4"><div><h1 class="text-3xl font-bold">图片管理</h1><p class="text-gray-500 mt-2">选择一个 Profile 查看其本地图片。</p></div><select id="image-profile-select" class="w-full md:w-80 h-10 px-4 border border-gray-200 rounded-lg"><option value="">请选择 Profile</option>${profileOptions}</select></header>
+    ${issueBanner}
     <section class="grid grid-cols-1 md:grid-cols-3 gap-4"><div class="bg-white p-4 rounded-2xl shadow-soft"><span class="text-xs text-gray-500">图片总数</span><strong class="block text-2xl">${result?.total ?? 0}</strong></div><div class="bg-white p-4 rounded-2xl shadow-soft"><span class="text-xs text-gray-500">当前页</span><strong class="block text-2xl">${records.length}</strong></div><div class="bg-white p-4 rounded-2xl shadow-soft"><span class="text-xs text-gray-500">项目数量</span><strong class="block text-2xl">${projectCount}</strong></div></section>
     <form id="image-filter-form" class="bg-white p-4 rounded-2xl shadow-soft grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3"><input name="keyword" type="search" class="h-10 px-3 border border-gray-200 rounded-lg lg:col-span-2" placeholder="搜索文件、项目或任务"/><select name="status" class="h-10 px-3 border border-gray-200 rounded-lg"><option value="">全部状态</option><option value="completed">成功</option><option value="generating">生成中</option><option value="failed">失败</option><option value="missing">缺失</option><option value="corrupt">损坏</option></select><select name="format" class="h-10 px-3 border border-gray-200 rounded-lg"><option value="">全部格式</option><option>png</option><option>jpg</option><option>webp</option><option>gif</option></select><select name="orientation" class="h-10 px-3 border border-gray-200 rounded-lg"><option value="">全部方向</option><option value="landscape">横向</option><option value="portrait">纵向</option><option value="square">方形</option></select><select name="sort" class="h-10 px-3 border border-gray-200 rounded-lg"><option value="generatedAt_desc">时间：新到旧</option><option value="generatedAt_asc">时间：旧到新</option><option value="projectActivity">最近项目</option><option value="fileName">文件名</option><option value="byteSize">文件大小</option><option value="dimensions">尺寸</option></select><select name="group" class="h-10 px-3 border border-gray-200 rounded-lg"><option value="recent_project">最近项目分组</option><option value="project">项目分组</option><option value="task">任务分组</option><option value="date">日期分组</option><option value="none">不分组</option></select><button type="submit" class="h-10 px-4 bg-mint-600 text-white rounded-lg font-semibold">应用筛选</button><button type="button" data-action="scan-images" class="h-10 px-4 border border-gray-200 rounded-lg"><i class="fa-solid fa-rotate mr-2"></i>重新扫描</button><div class="flex gap-1"><button type="button" data-action="image-grid" title="网格视图" class="w-10 h-10 border border-gray-200 rounded-lg"><i class="fa-solid fa-grip"></i></button><button type="button" data-action="image-list" title="列表视图" class="w-10 h-10 border border-gray-200 rounded-lg"><i class="fa-solid fa-list"></i></button></div><details class="sm:col-span-2 lg:col-span-6 border-t border-gray-100 pt-3"><summary class="text-sm font-medium cursor-pointer">更多筛选</summary><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-3"><input name="projectId" class="h-10 px-3 border border-gray-200 rounded-lg" placeholder="项目 ID"/><input name="taskId" class="h-10 px-3 border border-gray-200 rounded-lg" placeholder="任务 ID"/><select name="generationType" class="h-10 px-3 border border-gray-200 rounded-lg"><option value="">全部生成类型</option><option value="text_to_image">文字生图</option><option value="image_to_image">参考图改图</option><option value="refine">连续修改</option><option value="other">其他</option></select><span></span><label class="text-xs text-gray-500">开始时间<input name="from" type="date" class="mt-1 w-full h-10 px-3 border border-gray-200 rounded-lg"/></label><label class="text-xs text-gray-500">结束时间<input name="to" type="date" class="mt-1 w-full h-10 px-3 border border-gray-200 rounded-lg"/></label><input name="minWidth" type="number" min="0" class="h-10 px-3 border border-gray-200 rounded-lg self-end" placeholder="最小宽度"/><input name="minHeight" type="number" min="0" class="h-10 px-3 border border-gray-200 rounded-lg self-end" placeholder="最小高度"/></div></details></form>
     <section class="${state.imageView === "list" ? "grid grid-cols-1" : "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4"} gap-5" id="image-results">${content}</section>
@@ -249,15 +264,18 @@ async function loadImages(page = 1) {
   const version = state.imageRequestVersion;
   state.imageAbortController?.abort();
   state.imageAbortController = new AbortController();
-  if (!profileId) { state.images = { phase: "unselected", result: null, error: null }; renderImages(); return; }
-  state.images = { phase: "loading", result: null, error: null }; renderImages();
+  if (!profileId) { state.images = { phase: "unselected", result: null, error: null, issues: [] }; renderImages(); return; }
+  state.images = { phase: "loading", result: null, error: null, issues: [] }; renderImages();
   try {
-    const result = await api(`/profiles/${encodeURIComponent(profileId)}/images?${query}`, { signal: state.imageAbortController.signal });
+    const [result, indexStatus] = await Promise.all([
+      api(`/profiles/${encodeURIComponent(profileId)}/images?${query}`, { signal: state.imageAbortController.signal }),
+      api(`/profiles/${encodeURIComponent(profileId)}/images/index-status`, { signal: state.imageAbortController.signal })
+    ]);
     if (version !== state.imageRequestVersion || profileId !== state.selectedProfileId) return;
-    state.images = { phase: "ready", result, error: null };
+    state.images = { phase: "ready", result, error: null, issues: Array.isArray(indexStatus?.issues) ? indexStatus.issues : [] };
   } catch (error) {
     if (error.name === "AbortError" || version !== state.imageRequestVersion) return;
-    state.images = { phase: "error", result: null, error: error.message };
+    state.images = { phase: "error", result: null, error: error.message, issues: [] };
   }
   renderImages();
 }
@@ -284,7 +302,7 @@ document.addEventListener("change", (event) => {
   if (event.target.id === "image-profile-select") {
     state.selectedProfileId = event.target.value || null;
     state.imageFilters = {};
-    state.images = { phase: state.selectedProfileId ? "loading" : "unselected", result: null, error: null };
+    state.images = { phase: state.selectedProfileId ? "loading" : "unselected", result: null, error: null, issues: [] };
     loadImages();
   }
 });
@@ -371,8 +389,8 @@ document.addEventListener("click", async (event) => {
   }
   if (action === "scan-images") {
     if (!state.selectedProfileId) return;
-    state.images = { phase: "scanning", result: null, error: null }; renderImages();
-    try { await api(`/profiles/${encodeURIComponent(state.selectedProfileId)}/images/scan`, { method: "POST" }); await loadImages(); } catch (error) { state.images = { phase: "error", result: null, error: error.message }; renderImages(); }
+    state.images = { phase: "scanning", result: null, error: null, issues: [] }; renderImages();
+    try { await api(`/profiles/${encodeURIComponent(state.selectedProfileId)}/images/scan`, { method: "POST" }); await loadImages(); } catch (error) { state.images = { phase: "error", result: null, error: error.message, issues: [] }; renderImages(); }
   }
   if (action === "image-detail") return openImageDetails(button.dataset.imageId);
   if (action === "close-image-modal") return closeImageModal();

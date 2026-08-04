@@ -217,6 +217,8 @@ export async function startManagerServer(options: StartManagerServerOptions): Pr
   const backupRoot = resolve(options.backupRoot);
   const publicRoot = resolve(options.publicRoot ?? join(process.cwd(), "src", "manager", "public"));
   const browser = options.browser ?? createBrowserController(runtime, options.chromeExecutablePath);
+  const leaseProbe = new BrowserLease(runtime.dataRoot, { profileId: "startup-probe", profileDir: runtime.dataRoot, ownerType: "manual" });
+  await runtime.manager.reconcileBrowserStatuses(await leaseProbe.liveStatus());
   await Promise.all([mkdir(outputRoot, { recursive: true }), mkdir(backupRoot, { recursive: true }), mkdir(join(runtime.dataRoot, "image-indexes"), { recursive: true })]);
   const backups = new Map((await listBackups(backupRoot)).map((backup) => [backup.backupId, backup]));
 

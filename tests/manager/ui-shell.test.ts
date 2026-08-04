@@ -102,3 +102,10 @@ test("IMG-4 distinguishes an empty Profile from an empty filtered result", async
     "没有符合当前筛选条件的图片"
   );
 });
+
+test("IMG-4 surfaces permission and scan issues instead of hiding them as an empty Profile", () => {
+  const source = readFileSync("src/manager/public/app.js", "utf8");
+  assert.match(source, /\/index-status/);
+  assert.match(source, /PERMISSION_DENIED/);
+  assert.match(source, /图片目录权限不足/);
+});

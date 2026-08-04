@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { conversationPlan, imageGenerationPrompt, supplementImagePrompt } from "../../src/chatgpt/conversation.js";
+import { conversationPlan, imageGenerationPrompt, supplementImagePrompt, isStableConversationUrl } from "../../src/chatgpt/conversation.js";
 import { resolveSemanticTarget, SemanticLocatorError } from "../../src/chatgpt/locators.js";
 import { prepareSubmission, confirmSubmission, decideRetry } from "../../src/chatgpt/submit.js";
 import { bindResponseAnchor } from "../../src/chatgpt/response-anchor.js";
@@ -62,4 +62,9 @@ test("T23 binds only the assistant turn adjacent to this user turn", () => {
   const anchor = bindResponseAnchor(turns, 3, new Date("2026-07-30T00:00:00Z"));
   assert.equal(anchor.assistantTurnOrdinal, 4);
   assert.throws(() => bindResponseAnchor([...turns, { ordinal: 5, role: "assistant", text: "冲突", imageFingerprints: [] }], 3, new Date()), /唯一/);
+});
+
+test("T34 rejects temporary WEB conversation URLs as recovery anchors", () => {
+  assert.equal(isStableConversationUrl("https://chatgpt.com/c/WEB:0fc433b3-595d-4575-aef1-86007403a25e"), false);
+  assert.equal(isStableConversationUrl("https://chatgpt.com/c/6a6e1566-0318-83ec-ac91-2c6536149b19"), true);
 });

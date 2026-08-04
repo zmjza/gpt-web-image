@@ -12,6 +12,7 @@ import { sanitizeFileName } from "../platform/paths.js";
 import { createPngPreview } from "../images/preview.js";
 import type { PreparedSubmission } from "./submit.js";
 import type { ResponseAnchor } from "../tasks/model.js";
+import { isStableConversationUrl } from "./conversation.js";
 
 export interface WebImageFlowOptions {
   page: Page;
@@ -30,7 +31,7 @@ export interface WebImageFlowOptions {
   onPreparedSubmission?: (submission: PreparedSubmission) => void | Promise<void>;
   onBeforeSubmitClick?: () => void | Promise<void>;
   onSubmissionConfirmed?: () => void | Promise<void>;
-  onResponseAnchor?: (anchor: ResponseAnchor, chatUrl: string) => void | Promise<void>;
+  onResponseAnchor?: (anchor: ResponseAnchor, chatUrl: string | null) => void | Promise<void>;
   knownHashes?: ReadonlySet<string>;
   isCancelled?: () => boolean | Promise<boolean>;
   requireExistingConversation?: boolean;
@@ -56,10 +57,6 @@ async function userMessageTexts(page: Page): Promise<string[]> {
 
 async function conversationLinks(page: Page): Promise<string[]> {
   return page.locator('a[href*="/c/"]').evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).href).filter(Boolean)).catch(() => []);
-}
-
-function isStableConversationUrl(value: string): boolean {
-  return /^https:\/\/chatgpt\.com\/c\/[a-f0-9-]{20,}(?:[/?#]|$)/i.test(value) && !/\/c\/WEB:/i.test(value);
 }
 
 async function composerText(composer: Locator): Promise<string> {
@@ -215,7 +212,8 @@ export async function runWebImageFlow(options: WebImageFlowOptions): Promise<Web
     await waitForAssistantTurn(page, assistantIndex, options.timeoutMs);
   }
   const assistant = (await turnLocator(page, "assistant")).nth(assistantIndex);
-  await options.onResponseAnchor?.({ userTurnOrdinal: userBaseline.length + 1, assistantTurnOrdinal: assistantIndex + 1, semanticFingerprint: createHash("sha256").update(`${page.url()}:${userBaseline.length + 1}:${assistantIndex + 1}`).digest("hex"), boundAt: new Date().toISOString() }, page.url());
+  const currentChatUrl = page.url();
+  await options.onResponseAnchor?.({ userTurnOrdinal: userBaseline.length + 1, assistantTurnOrdinal: assistantIndex + 1, semanticFingerprint: createHash("sha256").update(`${currentChatUrl}:${userBaseline.length + 1}:${assistantIndex + 1}`).digest("hex"), boundAt: new Date().toISOString() }, isStableConversationUrl(currentChatUrl) ? currentChatUrl : null);
   if (initialPageState) options.onState?.(initialPageState);
   const discovery = new ImageDiscovery([], options.stabilityWindowMs);
   const knownHashes = new Set(options.knownHashes ?? []);

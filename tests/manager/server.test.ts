@@ -24,7 +24,7 @@ async function fixture() {
     closeAll: async () => { openProfiles.clear(); }
   };
   const server = await startManagerServer({ runtime: { store, manager, dataRoot: root }, outputRoot, backupRoot: join(root, "backups"), browser, port: 0 });
-  return { root, store, manager, outputRoot, server, baseUrl: server.url };
+  return { root, store, manager, outputRoot, server, browser, baseUrl: server.url };
 }
 
 async function json(baseUrl: string, path: string, init?: RequestInit) {
@@ -48,6 +48,34 @@ test("T48 manager eligibility waits for the hydrated composer before reading pla
     assert.equal(result.eligible, true);
   } finally {
     await browser.close();
+  }
+});
+
+test("manager startup clears a stale open browser status when no live lease exists", async () => {
+  const { root, store, manager, outputRoot, server, browser } = await fixture();
+  try {
+    const created = await json(server.url, "/profiles", { method: "POST", body: JSON.stringify({ name: "陈旧状态", accountLabel: null }) });
+    assert.equal(created.response.status, 201);
+    const profileId = created.body.profileId as string;
+    await manager.setBrowserStatus(profileId, "open");
+    await server.close();
+
+    const restarted = await startManagerServer({
+      runtime: { store, manager, dataRoot: root },
+      outputRoot,
+      backupRoot: join(root, "backups"),
+      browser,
+      port: 0
+    });
+    try {
+      const listed = await json(restarted.url, "/profiles");
+      assert.equal(listed.response.status, 200);
+      assert.equal(listed.body.profiles[0].browserStatus, "closed");
+    } finally {
+      await restarted.close();
+    }
+  } finally {
+    await server.close().catch(() => undefined);
   }
 });
 
