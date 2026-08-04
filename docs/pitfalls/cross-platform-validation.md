@@ -206,3 +206,35 @@
 **相关文件或命令**：`scripts/check_real_test_checklist.py`、`liran_docs/09-真机实测.md`、`.github/workflows/windows.yml`。
 
 **适用范围**：所有跨平台 CI、macOS 真机和 Windows 用户验收收口。
+
+## Windows Python 门禁输出必须显式使用 UTF-8
+
+**现象**：清单内容本身完整，但 Windows Actions 的默认代码页无法打印中文错误，检查器在失败分支抛出 `UnicodeEncodeError`，导致测试失败且隐藏了原始门禁结果。
+
+**根因**：Windows runner 的 `sys.stdout`/`sys.stderr` 可能使用非 UTF-8 编码；检查器错误信息包含中文，直接写入默认流会失败。
+
+**正确做法**：文档门禁启动时对可用的标准输出和错误流调用 `reconfigure(encoding="utf-8", errors="replace")`；保留真实错误码和错误文本，不用修改文档内容或吞掉门禁失败。
+
+**验证方式**：运行 `npm test` 中的清单检查器测试，并在 `windows-latest` 上确认失败样例能输出可读错误、完整样例返回 0；当前修复提交的 run `30947022763` 已验证。
+
+**禁止事项**：不得依赖开发机 locale、把中文错误改成无意义的数字、捕获后返回成功，或把编码异常写成业务测试失败。
+
+**相关文件或命令**：`scripts/check_real_test_checklist.py`、`tests/check-real-test-checklist.test.ts`、`.github/workflows/windows.yml`。
+
+**适用范围**：Windows 文档门禁、Python CLI、JSON/文本诊断和所有包含中文输出的跨平台测试。
+
+## 逐图取消夹具必须显式拉开图片间隔
+
+**现象**：`T14 stops between image deliveries` 在 Windows runner 负载较高时偶发没有在第一张图后取消，表现为 `Missing expected rejection`；本机串行运行通常通过。
+
+**根因**：夹具用固定 80ms 定时器产生连续图片；Windows 调度和第一张图片下载/校验耗时可能让多张图片在同一轮观察中同时出现，测试无法稳定证明“图间取消”。
+
+**正确做法**：夹具支持 `imageGap` 参数，取消用例使用 500ms 间隔，确保第一张回调完成后第二张尚未产生；生产监控、取消语义和下载校验不作放宽。
+
+**验证方式**：运行 `node --test --test-concurrency=1 dist/tests/integration/web-flow.test.js` 和完整 `npm test`；修复后的 Windows Actions run `30947022763` 全量 140/140 通过。
+
+**禁止事项**：不得删除取消断言、改成只验证最终状态、无限增加生产超时或把一次偶发绿色 CI 当作稳定证据。
+
+**相关文件或命令**：`tests/fixtures/chatgpt-page/index.html`、`tests/integration/web-flow.test.ts`、`npm run test:integration`。
+
+**适用范围**：逐图回显、部分成功、取消/超时和 Windows/macOS Chrome 夹具时序测试。

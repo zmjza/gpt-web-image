@@ -79,6 +79,12 @@ CI 不登录真实 ChatGPT，不证明网页真实流程完成。不得把模拟
 
 ## 2026-08-05 当前提交最终 run
 
-- 提交 `0839329a21304c30d76fb7373dd54df5b3e6b3db` 对应 Windows CI run `30944073691` / job `92109518018`，状态 `completed/success`：<https://github.com/zmjza/gpt-web-image/actions/runs/30944073691>。
-- 已通过 GitHub Actions 连接器读取完整 job 日志：Windows Server 2025、Node `v22.23.1`、npm `10.9.8`；`npm ci` 为 0 vulnerabilities，Chrome 探测、typecheck、全量 `npm test`（136/136，0 fail）和 build 全部成功。
+- 提交 `5c5e23131a6614bd13e6d8ed01d08e3fddefb843` 对应 Windows CI run `30947022763` / job `92119414561`，状态 `completed/success`：<https://github.com/zmjza/gpt-web-image/actions/runs/30947022763>。
+- 已通过 GitHub Actions 连接器读取完整 job 日志：Windows Server 2025、Node `v22.23.1`、npm `10.9.8`；`npm ci` 为 0 vulnerabilities，Chrome 探测、typecheck、全量 `npm test`（140/140，0 fail）和 build 全部成功。
 - 覆盖 Windows 路径、锁/进程、网页夹具、下载解码、JSONL、恢复、Profile/图片索引、备份迁移和安全测试；不包含真实 ChatGPT 登录，不等同 macOS 真机或 Windows x64 用户验收，T42 未执行。
+
+## 2026-08-05 修复提交最终 run
+
+- 首次清单门禁提交 `3034d3772bce38444702837c5ab20b35ce265c0a` 的 run `30946297935` 因 Windows 输出编码和 T14 夹具时序失败；修复提交 `5c5e23131a6614bd13e6d8ed01d08e3fddefb843` 对应 run `30947022763` / job `92119414561`，状态 `completed/success`：<https://github.com/zmjza/gpt-web-image/actions/runs/30947022763>。
+- 已通过 GitHub Actions 连接器读取完整 job 日志：Windows Server 2025、Node `v22.23.1`、npm `10.9.8`；`npm ci` 为 0 vulnerabilities，Chrome 探测、typecheck、全量 `npm test`（140/140，0 fail）和 build 全部成功。
+- 本 run 覆盖清单检查器的 Windows UTF-8 输出、Profile/图片管理、路径、锁/进程、网页夹具、下载解码、JSONL、恢复、备份迁移和安全测试；不包含真实 ChatGPT 登录，不等同 macOS 真机或 Windows x64 用户验收，T42 未执行。
