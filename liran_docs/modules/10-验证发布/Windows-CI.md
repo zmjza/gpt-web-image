@@ -64,3 +64,9 @@ CI 不登录真实 ChatGPT，不证明网页真实流程完成。不得把模拟
 - 提交 `43321b571e6c6057331ab51f543a855d34a81ea6` 对应 Windows CI run `30894814644` / job `91945099220`，状态 `completed/success`：<https://github.com/zmjza/gpt-web-image/actions/runs/30894814644>。
 - 完整 job 日志已读取，Windows Server 2025、Node `v22.23.1`、npm `10.9.8`；`npm ci` 0 vulnerabilities，Chrome 探测、typecheck、全量 `npm test`（130/130）和 build 均成功。
 - 该 run 只证明当前提交的跨平台代码与夹具门禁，不证明真实 ChatGPT、macOS 真机或 Windows x64 用户验收；T42 仍未执行。
+
+## 2026-08-04 0.2.13 最终文档提交 run
+
+- 文档收口提交 `8ea1af4cdfb79eb19cdeac896da0b8a3a15ba930` 对应 Windows CI run `30900801645` / job `91964391130`，状态 `completed/success`：<https://github.com/zmjza/gpt-web-image/actions/runs/30900801645>。
+- checkout、Node、`npm ci`、Chrome 探测、typecheck、全量测试和 build 全部成功，失败诊断上传按条件跳过。
+- 该 run 是当前最终文档提交的跨平台门禁证据，不包含真实 ChatGPT 登录或 Windows x64 用户操作；Windows x64 用户验收按目标开头的用户决定本轮豁免并默认通过（无真机证据）。

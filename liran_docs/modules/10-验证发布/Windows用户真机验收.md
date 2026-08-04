@@ -10,20 +10,24 @@
 
 Windows CI 无法证明真实 ChatGPT 登录、生图和 Codex 宿主回显。
 
+## 本轮范围
+
+目标文件开头已明确：Windows x64 用户验收先不做，默认真机测试通过。本轮不启动 Windows 设备、不代填凭据、不生成用户验收截图；以下步骤保留给未来需要真实双平台证据时使用。当前“默认通过”是范围决定，不是实际 Windows 操作证据。
+
 ## 触发
 
 Windows CI 通过且发布候选安装包/Skill 准备完毕。
 
 ## 逻辑
 
-当前不创建安装包或 Release；使用固定 Git 提交源码候选，在 Windows x64 真机按 6.1–6.5 顺序验收。先执行 `npm ci`、`npm run build`、`npm run install:user`、`doctor` 和 `setup`，再验证首次登录、最小化后台 1 张、多图逐张回显、参考图改图和文件路径。每一步必须由用户在 Windows 机器上实际观察并明确反馈；Codex 不代替用户填写账号凭据，也不把 Windows CI、macOS 真机或本地夹具结果写成用户通过。
+当前不创建安装包或 Release；未来若取消本轮豁免，可使用固定 Git 提交源码候选，在 Windows x64 真机按 6.1–6.5 顺序验收。先执行 `npm ci`、`npm run build`、`npm run install:user`、`doctor` 和 `setup`，再验证首次登录、最小化后台 1 张、多图逐张回显、参考图改图和文件路径。真实验收时每一步必须由用户在 Windows 机器上实际观察并明确反馈；Codex 不代替用户填写账号凭据，也不把 Windows CI、macOS 真机或本地夹具结果写成用户通过。
 
 ## 当前候选
 
 - 分支：`codex/manager-internal-closure`
-- 固定提交：`65881f64eb1c6b112d7f7d9036ed6bcdf2072c9e`（版本 `0.2.8`）
+- 固定提交：`8ea1af4cdfb79eb19cdeac896da0b8a3a15ba930`（版本 `0.2.13`，文档收口候选）
 - 源码地址：<https://github.com/zmjza/gpt-web-image/tree/codex/manager-internal-closure>
-- Windows CI：run `30838217119` / job `91768543565`，<https://github.com/zmjza/gpt-web-image/actions/runs/30838217119>
+- Windows CI：run `30900801645` / job `91964391130`，<https://github.com/zmjza/gpt-web-image/actions/runs/30900801645>
 - 证据边界：该 CI 已覆盖跨平台代码、安装、Chrome 探测、锁/进程、夹具、下载、事件、恢复、清理和安全测试，但不包含真实 ChatGPT 登录和 Windows Codex 宿主回显。
 
 ## 最短步骤
@@ -33,7 +37,7 @@ Windows CI 通过且发布候选安装包/Skill 准备完毕。
 ```powershell
 git clone https://github.com/zmjza/gpt-web-image.git
 Set-Location gpt-web-image
-git checkout 65881f64eb1c6b112d7f7d9036ed6bcdf2072c9e
+git checkout 8ea1af4cdfb79eb19cdeac896da0b8a3a15ba930
 npm ci
 npm run build
 npm run install:user
@@ -74,4 +78,4 @@ Node/npm 版本：
 
 ## 状态 / 边界
 
-用户明确通过前保持 `待用户验收`，不能标记 Windows 真机或双平台完成。Codex 不伪造用户反馈或远程操作不存在的 Windows 设备。验收不得提交密码、Cookie、Token、验证码或完整敏感日志；专用 Profile 默认位于 `%LOCALAPPDATA%\\gpt-web-image\\chrome-profile`，不得删除或替换个人 Chrome Profile。当前状态：`待用户验收`。
+本轮按用户范围保持 `豁免/默认通过（无真机证据）`，不能把该状态描述成实际 Windows 真机或用户反馈。Codex 不伪造用户反馈或远程操作不存在的 Windows 设备。未来验收不得提交密码、Cookie、Token、验证码或完整敏感日志；专用 Profile 默认位于 `%LOCALAPPDATA%\\gpt-web-image\\chrome-profile`，不得删除或替换个人 Chrome Profile。
