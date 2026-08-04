@@ -191,3 +191,18 @@
 **相关文件或命令**：`package.json`、`src/browser/profile.ts`、`tests/integration/web-flow.test.ts`、`tests/manager/server.test.ts`、`node --test --test-concurrency=1`。
 
 **适用范围**：macOS Chrome 真实/夹具集成测试、AppleScript 窗口控制、Profile 生命周期和跨平台内部门禁。
+## 真机清单门禁必须绑定当前提交
+
+**现象**：`liran_docs/09-真机实测.md` 可能保留多个历史 Windows Actions run；只看到旧 run 绿色，不能证明当前工作区提交已通过 CI。
+
+**根因**：真机记录按时间追加，历史证据与当前提交状态容易混在一起；没有当前提交一致性检查时，文档会出现“证据看似完整但实际指向旧代码”的风险。
+
+**正确做法**：每次收口在清单中记录当前完整提交、对应 Actions run/job 和最终状态；运行 `python3 scripts/check_real_test_checklist.py liran_docs/09-真机实测.md --require-complete`，确认必验行、范围豁免和当前提交证据均存在。提交后补充文档会产生新的 HEAD，因此清单记录的证据提交允许是当前 HEAD 或其祖先，但不能是无关提交。该脚本只做文档门禁，不能替代真实操作。
+
+**验证方式**：先用一个旧或缺少当前 SHA 的清单运行严格模式，必须失败；补齐当前 SHA、成功 CI 和本轮范围记录后再运行，必须返回 0。
+
+**禁止事项**：不得把历史 run、夹具结果、macOS 真机或 Windows CI 写成 Windows 用户真机通过；不得删除历史失败记录来让脚本通过。
+
+**相关文件或命令**：`scripts/check_real_test_checklist.py`、`liran_docs/09-真机实测.md`、`.github/workflows/windows.yml`。
+
+**适用范围**：所有跨平台 CI、macOS 真机和 Windows 用户验收收口。
