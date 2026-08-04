@@ -156,6 +156,13 @@ def validate(markdown: str, strict: bool) -> tuple[list[str], list[str], dict[st
 
 
 def main() -> int:
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (OSError, ValueError):
+                pass
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("checklist", type=Path, help="Markdown real-test checklist")
     parser.add_argument("--require-complete", action="store_true", help="fail unless all in-scope evidence gates pass")

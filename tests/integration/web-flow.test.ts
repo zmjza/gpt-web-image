@@ -219,7 +219,7 @@ test("T14 stops between image deliveries when cancellation is requested", { skip
   const browser = await chromium.launch({ executablePath: chrome.path as string, headless: true });
   try {
     const page = await browser.newPage({ acceptDownloads: true });
-    await page.goto(`${fixture.url}/?scenario=success&count=2`);
+    await page.goto(`${fixture.url}/?scenario=success&count=2&imageGap=500`);
     let delivered = 0;
     const layout = await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-cancel-between-images-")), new Date(), "fixture_cancel_between_images");
     await assert.rejects(() => runWebImageFlow({
