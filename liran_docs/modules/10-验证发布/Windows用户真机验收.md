@@ -25,9 +25,9 @@ Windows CI 通过且发布候选安装包/Skill 准备完毕。
 ## 当前候选
 
 - 分支：`codex/manager-internal-closure`
-- 固定提交：`8ea1af4cdfb79eb19cdeac896da0b8a3a15ba930`（版本 `0.2.13`，文档收口候选）
+- 固定提交：`401b2834b3ac762b49f73c2ae6b321287acc9051`（版本 `0.2.13`，范围收口候选）
 - 源码地址：<https://github.com/zmjza/gpt-web-image/tree/codex/manager-internal-closure>
-- Windows CI：run `30900801645` / job `91964391130`，<https://github.com/zmjza/gpt-web-image/actions/runs/30900801645>
+- Windows CI：run `30902048432` / job `91968381639`，<https://github.com/zmjza/gpt-web-image/actions/runs/30902048432>
 - 证据边界：该 CI 已覆盖跨平台代码、安装、Chrome 探测、锁/进程、夹具、下载、事件、恢复、清理和安全测试，但不包含真实 ChatGPT 登录和 Windows Codex 宿主回显。
 
 ## 最短步骤
@@ -37,7 +37,7 @@ Windows CI 通过且发布候选安装包/Skill 准备完毕。
 ```powershell
 git clone https://github.com/zmjza/gpt-web-image.git
 Set-Location gpt-web-image
-git checkout 8ea1af4cdfb79eb19cdeac896da0b8a3a15ba930
+git checkout 401b2834b3ac762b49f73c2ae6b321287acc9051
 npm ci
 npm run build
 npm run install:user
