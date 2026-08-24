@@ -325,7 +325,7 @@ test("T03 CLI preserves confirmed reference attachment evidence after submission
     const code = await runCli(["edit", "--reference", reference, "--prompt", "保留附件证据", "--count", "1", "--url", `${fixture.url}/?scenario=success&count=1&attachmentUi=real`, "--config", configPath], { stdout: (line) => stdout.push(line), stderr: (line) => stderr.push(line) });
     assert.equal(code, 0, [...stderr, ...stdout].join("\n"));
     const taskId = (JSON.parse(stdout[0] as string) as { taskId: string }).taskId;
-    const taskFile = (await readdir(outputDir, { recursive: true })).find((entry) => entry.endsWith(`${taskId}/task.json`));
+    const taskFile = (await readdir(outputDir, { recursive: true })).find((entry) => entry.endsWith(join(taskId, "task.json")));
     assert.ok(taskFile);
     const task = JSON.parse(await readFile(join(outputDir, taskFile), "utf8")) as { submission: { confirmationEvidence: string[] } };
     assert.ok(task.submission.confirmationEvidence.includes("reference_attachment_visible"));

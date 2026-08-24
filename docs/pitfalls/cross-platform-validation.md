@@ -80,6 +80,22 @@
 
 **适用范围**：macOS/Windows Profile、输出目录、CLI 参数和所有路径字符串断言。
 
+## 递归文件结果与子进程启动预算必须使用当前平台语义
+
+**现象**：Windows CI 的真实业务流程已成功，CLI 返回 0，但测试用 `${taskId}/task.json` 查找递归 `readdir` 结果时失败；同一 run 的跨进程 FIFO 夹具在约 500ms 内没看到 ready 文件，报“启动超时”。
+
+**根因**：Windows 递归目录条目使用原生反斜杠，硬编码 POSIX `/` 无法匹配；Windows runner 创建独立 Node 进程和加载 ESM 的时间可能超过本机 500ms，原预算没有覆盖跨平台启动成本。
+
+**正确做法**：使用 `path.join(taskId, "task.json")` 构造预期后缀；跨进程夹具使用有界 5 秒 deadline，并在等待期间检查首个子进程是否已经退出，以区分慢启动与真实崩溃。业务锁、FIFO 顺序和生产超时不作放宽。
+
+**验证方式**：本机定向运行 CLI 附件证据和双进程 FIFO 测试；推送后必须在最新提交对应的 Windows Actions 中确认完整 `npm test` 和 build 绿色，不能复用失败 run `32732163497`。
+
+**禁止事项**：不得把路径分隔符写死为 `/` 或 `\\`；不得无限等待或放宽生产队列超时；不得仅重跑失败 CI 而不修复可复现的跨平台假设。
+
+**相关文件或命令**：`tests/integration/web-flow.test.ts`、`tests/tasks/profile-queue.test.ts`、`path.join`、`.github/workflows/windows.yml`。
+
+**适用范围**：Windows/macOS/Linux 的递归文件枚举、独立 Node 进程夹具和跨进程队列验证。
+
 ## 不要让未锚定的 profiles 忽略规则排除源代码和测试
 
 **现象**：本机依赖目录中存在 `src/profiles/` 和 `tests/profiles/`，所以 typecheck 和测试通过；提交后 Windows checkout 缺少 Profile 实现和测试，先后导致 typecheck 模块缺失、T57/T77 文件映射失败。

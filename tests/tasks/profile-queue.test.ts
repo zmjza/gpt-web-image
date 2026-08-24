@@ -54,8 +54,10 @@ test("serializes two separate Node processes in FIFO order", async () => {
   const worker = `import { writeFile, appendFile } from "node:fs/promises"; import { ProfileTaskQueue } from ${JSON.stringify(modulePath)}; const [root, task, ready, log, hold] = process.argv.slice(1); const q = new ProfileTaskQueue(root, "profile-process", { pollIntervalMs: 5 }); await q.enqueue(task); if (ready) await writeFile(ready, "ready"); await q.waitForTurn(task); await appendFile(log, task + ":start\\n"); await new Promise((resolve) => setTimeout(resolve, Number(hold))); await appendFile(log, task + ":end\\n"); await q.release(task);`;
   const first = spawn(process.execPath, ["--input-type=module", "-e", worker, root, "task-a", ready, log, "50"], { stdio: "ignore" });
   const waitForReady = async (): Promise<void> => {
-    for (let attempt = 0; attempt < 100; attempt += 1) {
-      try { await access(ready); return; } catch { await new Promise((resolve) => setTimeout(resolve, 5)); }
+    const deadline = Date.now() + 5_000;
+    while (Date.now() < deadline) {
+      if (first.exitCode !== null) throw new Error(`跨进程队列首个子进程提前退出：${first.exitCode}`);
+      try { await access(ready); return; } catch { await new Promise((resolve) => setTimeout(resolve, 10)); }
     }
     throw new Error("跨进程队列夹具启动超时");
   };
