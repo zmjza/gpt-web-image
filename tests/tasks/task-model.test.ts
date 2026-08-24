@@ -10,6 +10,9 @@ test("T09 creates a stable path-safe TaskRecord", () => {
   assert.equal(task.schemaVersion, "1");
   assert.equal(task.state, "initializing");
   assert.equal(task.targetCount, 1);
+  assert.deepEqual(task.modelSelections, []);
+  assert.deepEqual(task.referenceEvidence, []);
+  assert.equal(task.queuePosition, null);
   assert.deepEqual(task.results, []);
   assert.equal("cookie" in task, false);
   assert.equal("authorization" in task, false);

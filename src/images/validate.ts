@@ -2,6 +2,7 @@ import { stat } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
 import { hashFile } from "./hash.js";
+import { parseAspectRatio } from "./ratio.js";
 
 export interface ImageResult {
   resultId: string;
@@ -12,10 +13,26 @@ export interface ImageResult {
   height: number;
   byteLength: number;
   sha256: string;
+  provenance?: {
+    userTurnOrdinal: number;
+    assistantTurnOrdinal: number;
+    mediaCardId: string;
+    downloadMethod: "download_event" | "exposed_resource";
+  };
 }
 
 export class ImageValidationError extends Error { public readonly code = "VALIDATION_FAILED"; }
 const FORMAT_MIME: Record<string, string> = { png: "image/png", jpeg: "image/jpeg", webp: "image/webp", gif: "image/gif", avif: "image/avif", tiff: "image/tiff" };
+
+export function assertAspectRatioDirection(width: number, height: number, requested: string | null): void {
+  if (!requested || width <= 0 || height <= 0) return;
+  const ratio = parseAspectRatio(requested);
+  const requestedOrientation = ratio.width === ratio.height ? "square" : ratio.width > ratio.height ? "landscape" : "portrait";
+  const actualOrientation = width === height ? "square" : width > height ? "landscape" : "portrait";
+  if (requestedOrientation !== "square" && actualOrientation !== "square" && requestedOrientation !== actualOrientation) {
+    throw new ImageValidationError(`图片比例方向与请求不符：请求 ${requested}，实际 ${width}:${height}`);
+  }
+}
 
 export async function validateImageFile(path: string, declaredMime?: string, knownHashes: ReadonlySet<string> = new Set()): Promise<ImageResult> {
   try {

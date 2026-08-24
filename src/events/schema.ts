@@ -12,6 +12,12 @@ export interface ImageEventPayload {
   height: number;
   byteLength: number;
   sha256: string;
+  provenance?: {
+    userTurnOrdinal: number;
+    assistantTurnOrdinal: number;
+    mediaCardId: string;
+    downloadMethod: "download_event" | "exposed_resource";
+  };
 }
 
 export interface ProgressEvent {
@@ -42,4 +48,9 @@ export function validateProgressEvent(event: ProgressEvent): void {
     !Number.isInteger(event.image.height) || event.image.height <= 0 ||
     !Number.isInteger(event.image.byteLength) || event.image.byteLength <= 0
   )) throw new Error("图片事件字段不完整");
+  if (event.image?.provenance && (
+    !Number.isInteger(event.image.provenance.userTurnOrdinal) || event.image.provenance.userTurnOrdinal < 1 ||
+    !Number.isInteger(event.image.provenance.assistantTurnOrdinal) || event.image.provenance.assistantTurnOrdinal < 1 ||
+    !event.image.provenance.mediaCardId || !["download_event", "exposed_resource"].includes(event.image.provenance.downloadMethod)
+  )) throw new Error("图片事件来源证据无效");
 }

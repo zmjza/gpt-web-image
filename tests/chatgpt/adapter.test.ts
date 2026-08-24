@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { conversationPlan, imageGenerationPrompt, supplementImagePrompt, isStableConversationUrl } from "../../src/chatgpt/conversation.js";
+import { conversationPlan, imageGenerationPrompt, supplementImagePrompt, refineImagePrompt, isStableConversationUrl } from "../../src/chatgpt/conversation.js";
 import { resolveSemanticTarget, SemanticLocatorError } from "../../src/chatgpt/locators.js";
 import { prepareSubmission, confirmSubmission, decideRetry } from "../../src/chatgpt/submit.js";
 import { bindResponseAnchor } from "../../src/chatgpt/response-anchor.js";
@@ -26,6 +26,18 @@ test("T20 forces native inline image delivery and forbids attachment bundles", (
   assert.match(prompt, /不要把多张图片拼成一张/);
   assert.match(supplementImagePrompt(7), /剩余 7 张/);
   assert.match(supplementImagePrompt(7), /内置图像生成能力/);
+});
+
+test("T20 puts the requested ratio into every web prompt", () => {
+  assert.match(imageGenerationPrompt("竖屏动漫", 1, "9:16"), /比例.*9:16/);
+  assert.match(supplementImagePrompt(1, "9:16"), /比例.*9:16/);
+});
+
+test("T20 binds image-to-image refinement to the selected source turn and position", () => {
+  const prompt = refineImagePrompt("改成夜景", 1, [{ assistantTurnOrdinal: 4, resultPosition: 2 }], "9:16");
+  assert.match(prompt, /第 4 个助手回复中的第 2 张生成图片/);
+  assert.match(prompt, /不得改动其他历史图片/);
+  assert.match(prompt, /9:16/);
 });
 
 test("T21 resolves by accessible semantics and rejects conflicts", () => {

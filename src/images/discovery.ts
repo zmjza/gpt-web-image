@@ -1,4 +1,19 @@
-export interface ImageCandidate { anchorId: string; fingerprint: string; resultId?: string; loaded: boolean; width: number; height: number; resourceUrl: string; downloadAvailable?: boolean; }
+export interface ImageCandidate {
+  anchorId: string;
+  fingerprint: string;
+  resultId?: string;
+  cardId?: string;
+  downloadUrl?: string;
+  downloadResultId?: string;
+  downloadKind?: "inline" | "viewer";
+  viewerTitle?: string | null;
+  mediaOrdinal?: number;
+  loaded: boolean;
+  width: number;
+  height: number;
+  resourceUrl: string;
+  downloadAvailable?: boolean;
+}
 
 export class ImageDiscovery {
   private readonly firstStableAt = new Map<string, number>();

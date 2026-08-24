@@ -88,6 +88,19 @@ test("T17 retries the macOS window marker while Chrome propagates the title", as
   assert.equal(attempts, 3);
 });
 
+test("T17 reapplies the macOS window marker before every bounded lookup", async () => {
+  let attempts = 0;
+  let markerWrites = 0;
+  await hideMacWindowByTitle("gpt-web-image-marker", {
+    intervalMs: 0,
+    maxAttempts: 3,
+    beforeAttempt: async () => { markerWrites += 1; },
+    run: () => (++attempts >= 3 ? "true\n" : "false\n")
+  });
+  assert.equal(attempts, 3);
+  assert.equal(markerWrites, 3);
+});
+
 test("T17 retries a transient macOS AppleScript connection error", async () => {
   let attempts = 0;
   await hideMacWindowByTitle("gpt-web-image-marker", {

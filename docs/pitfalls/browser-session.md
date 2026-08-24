@@ -144,6 +144,38 @@
 
 **适用范围**：macOS 台前调度、后台任务启动、窗口隐藏和专用 Chrome 关闭/重开。
 
+## macOS 隐藏轮询期间 SPA 可能重写临时标题
+
+**现象**：专用 Chrome 已连接并导航到正确稳定会话，但后台最小化仍在有界等待后报“找不到专用 Chrome 窗口”；任务尚未执行恢复观察，进程和锁被安全释放。
+
+**根因**：只在 AppleScript 轮询前设置一次随机 `document.title` 不够。ChatGPT SPA 会在路由或数据 hydration 时重写标题，导致后续每次精确查询都看不到随机标记；单纯延长等待时间无效。
+
+**正确做法**：每次有界 AppleScript 精确查询前，在目标 Playwright page 上重新写入同一个随机 UUID 标题；命中后只隐藏包含该精确标题标签页的窗口，并恢复原标题。重写或定位失败仍关闭本次专用 Chrome 并释放 Profile 锁。
+
+**验证方式**：新增回归测试确认每次查询前都执行标题重写；真实 `task_msiq8jlw_k1xot6vo` 恢复在旧逻辑失败，修复后进入原稳定会话并完成只读下载，未重新提交提示词。
+
+**禁止事项**：不得因此模糊匹配标题、按窗口序号操作、隐藏整个 Chrome 应用或控制用户个人 Chrome；不得无限重试或忽略最小化失败。
+
+**相关文件或命令**：`src/browser/profile.ts`、`tests/browser/session.test.ts`、`node dist/src/cli.js resume --task-id <taskId>`。
+
+**适用范围**：macOS ChatGPT SPA、后台任务启动、提交后恢复和精确窗口隐藏。
+
+## 跨进程 FIFO 的短时互斥锁也必须回收死进程
+
+**现象**：任务进程在更新持久化队列的极短临界区崩溃后，`.json.lock` 保留；后续任务即使 active PID 已退出，也全部在 `PROFILE_QUEUE_LOCK_TIMEOUT` 失败。
+
+**根因**：队列 active 记录已有死进程判断，但保护队列文件本身的短时互斥锁没有同等回收逻辑，导致一次崩溃影响同 Profile 后续所有任务。
+
+**正确做法**：互斥锁写入固定 schema、PID 和随机 token；遇到已存在锁时只在结构可验证且 PID 明确退出时回收。无法验证或 PID 仍存活时不得删除，继续有界等待并失败。
+
+**验证方式**：测试预置项目归属明确、PID 已退出的队列锁；修复前超时，修复后下一任务可 enqueue、取得执行权并释放。原有同进程和两个独立 Node 进程 FIFO 测试继续通过。
+
+**禁止事项**：不得按文件名无条件删除锁；不得回收存活 PID 或结构不明的锁；不得触碰 Profile 锁、BrowserLease 或用户个人 Chrome。
+
+**相关文件或命令**：`src/tasks/profile-queue.ts`、`tests/tasks/profile-queue.test.ts`、`npm test`。
+
+**适用范围**：同 Profile 多 Codex 对话、进程异常退出、队列恢复和串行网页提交。
+
 ## 管理服务重启必须恢复陈旧的浏览器状态
 
 **现象**：管理服务或浏览器进程异常退出后，Profile 注册表可能仍保存 `browserStatus=open`；实际没有项目专用 Chrome、Profile 锁或 BrowserLease，页面却继续显示“运行中”。
@@ -191,6 +223,22 @@
 **相关文件或命令**：`src/manager/server.ts`、`src/profiles/manager.ts`、`tests/manager/server.test.ts`、`/tmp/gwi-manager-isolated-e2e.mjs`、`npm test`。
 
 **适用范围**：macOS/Windows Profile 管理页面、唯一启用、资格检测和专用 Chrome 生命周期。
+
+## 嵌套模型菜单的父节点不是最终模型选项
+
+**现象**：真实图生图任务在提交前失败；一次 `locator.click` 等待可见 `role=menuitem` 时被 `thread-bottom-container` 拦截 30 秒，另一次打开菜单后返回 `MODEL_SELECTION_UNCERTAIN`。任务没有 `clickedAt`、`confirmedAt` 或 `chatUrl`，参考图证据已正常落盘。
+
+**根因**：ChatGPT 把模型能力入口改成 Radix 嵌套子菜单。父节点带 `data-has-submenu`、`aria-haspopup=menu` 和混合的高/中/极速文本；旧分类器优先匹配其中的“极速”，误把整个父节点当成最终选项，再用容易被底部覆盖层拦截的指针点击操作它。扁平菜单夹具没有覆盖该结构。
+
+**正确做法**：模型标签只有在唯一指向一个模型时才能分类；优先读取当前可见能力 group 内的唯一 slider，同时接受“思考强度”和当前“推理强度”文案。带子菜单语义的节点只用于导航，且只能在刚打开的模型 `role=menu` 内查找，不能全页匹配侧栏“高棉语”等文本。模型选择证据不明确时继续禁止提交，不能用强制点击绕过命中测试。
+
+**验证方式**：`tests/chatgpt/model-selection.test.ts` 断言混合父节点返回 `null`；`tests/fixtures/chatgpt-page/index.html` 覆盖 `nested-capability`、侧栏干扰和 `localized-capability`；`tests/integration/web-flow.test.ts` 断言最终选择 `GPT-5.6 Sol 高`。真实任务 `task_mt78uzxk_xu73ll7q` 的 `modelSelection` 已记录高模型并完成提交和交付。
+
+**禁止事项**：不得把父菜单文本中的任一关键词当成最终选择；不得对被遮挡元素使用未验证的 `force` 点击；不得把 `MODEL_SELECTION_UNCERTAIN` 推断为登录失效或额度耗尽；不得在提交状态不明确时盲目重试。
+
+**相关文件或命令**：`src/chatgpt/model-selection.ts`、`tests/chatgpt/model-selection.test.ts`、`tests/fixtures/chatgpt-page/index.html`、`tests/integration/web-flow.test.ts`、`node dist/src/cli.js edit`。
+
+**适用范围**：ChatGPT 模型/能力菜单改版、Radix 子菜单、后台最小化 Chrome、文生图、图生图和图改图的提交前模型门禁。
 
 ## Profile 路径健康状态必须在展示和动作前复核
 

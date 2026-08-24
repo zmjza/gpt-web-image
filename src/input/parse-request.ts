@@ -1,5 +1,6 @@
 import { existsSync, statSync } from "node:fs";
 import { extname } from "node:path";
+import { parseAspectRatio } from "../images/ratio.js";
 
 export type RequestKind = "generate" | "edit" | "refine";
 
@@ -52,6 +53,17 @@ export function parseRequest(input: RawRequest): NormalizedRequest {
       throw new RequestInputError(`参考图格式不支持：${referencePath}`);
     }
   }
+  if (kind === "edit" && referencePaths.length === 0) {
+    throw new RequestInputError("图生图必须提供至少一张本地参考图；请使用 edit --reference");
+  }
+  if (kind === "generate" && referencePaths.length > 0) {
+    throw new RequestInputError("generate 不能携带本地参考图；Codex 上传图片时必须改用图生图 edit");
+  }
+  if (kind === "refine" && referencePaths.length > 0) {
+    throw new RequestInputError("图改图 refine 不能携带本地参考图，只能使用指定源任务的网页生成结果");
+  }
+  const aspectRatioInput = input.aspectRatio?.trim() || null;
+  const aspectRatio = aspectRatioInput ? parseAspectRatio(aspectRatioInput).value : null;
   const sourceTaskId = input.sourceTaskId ?? null;
   const sourceResultIds = [...(input.sourceResultIds ?? [])];
   if (kind === "refine" && !sourceTaskId) {
@@ -61,7 +73,7 @@ export function parseRequest(input: RawRequest): NormalizedRequest {
     kind,
     prompt: input.prompt.trim(),
     count,
-    aspectRatio: input.aspectRatio?.trim() || null,
+    aspectRatio,
     referencePaths,
     sourceTaskId,
     sourceResultIds,

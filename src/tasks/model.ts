@@ -24,6 +24,19 @@ export interface ResponseAnchor {
   boundAt: string;
 }
 
+export interface TaskModelSelection {
+  modelKey: "gpt-5.6-sol-high" | "gpt-5.6-sol-medium" | "instant";
+  label: string;
+  priority: number;
+  selectedAt: string;
+}
+
+export interface TaskReferenceEvidence {
+  fileName: string;
+  byteLength: number;
+  sha256: string;
+}
+
 export interface TaskRecord {
   schemaVersion: "1";
   taskId: string;
@@ -44,6 +57,9 @@ export interface TaskRecord {
   lastEventSeq: number;
   cancelRequestedAt: string | null;
   profileBinding: TaskProfileBinding | null;
+  modelSelection: TaskModelSelection | null;
+  modelSelections: TaskModelSelection[];
+  referenceEvidence: TaskReferenceEvidence[];
 }
 
 export function isTaskState(value: string): value is TaskState {
@@ -73,6 +89,9 @@ export function createTaskRecord(input: RawRequest | NormalizedRequest, taskId: 
     failures: [],
     lastEventSeq: 0,
     cancelRequestedAt: null,
-    profileBinding
+    profileBinding,
+    modelSelection: null,
+    modelSelections: [],
+    referenceEvidence: []
   };
 }

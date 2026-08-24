@@ -18,9 +18,9 @@
 |---|---|---|---|
 | `setup` | 可选 Chrome/Profile 配置 | 可视登录并验证会话 | 否 |
 | `doctor` | `--json` 可选 | 检查 Node、Chrome、目录、锁和 Profile；输出 `profile.path`、`profile.markerPath`、`profile.retentionPolicy` | 否 |
-| `generate` | prompt、count、ratio、references | 创建新对话并文字/参考图生图 | 是 |
-| `edit` | prompt、references、count | 新对话中改图 | 是 |
-| `refine` | taskId、resultIds、prompt | 原会话连续修改 | 是 |
+| `generate` | prompt、count、ratio | 创建新对话并执行文生图；不接受本地参考图 | 是 |
+| `edit` | prompt、count、ratio、`--reference` | 创建新对话，将 Codex 本地图片作为参考执行图生图 | 是 |
+| `refine` | prompt、count、ratio、`--task-id`、`--result-id` | 复用指定源任务网页会话执行图改图 | 是 |
 | `resume` | taskId | 只读核对后恢复非终态任务 | 仅明确证明未提交时才可能提交 |
 | `cancel` | taskId | 取消排队或执行任务 | 否 |
 | `cleanup` | `--dry-run` / `--json` | 清理过期诊断资料 | 否 |

@@ -113,3 +113,99 @@
 **相关文件或命令**：`src/cli.ts`、`src/chatgpt/web-flow.ts`、`tests/integration/web-flow.test.ts`、`node dist/src/cli.js cancel --task-id ...`。
 
 **适用范围**：1–10 张生图、补图、改图和恢复任务的取消处理。
+
+## 生成图片必须通过唯一媒体查看器下载事件绑定
+
+**现象**：真实 ChatGPT 助手回合内没有原图下载链接；点击生成图后才挂载媒体查看器，主图先出现，“保存”按钮稍后才完成 hydration。若立即检查按钮会误报失败，若直接使用 `currentSrc` 又可能下载缩略图、历史图或签名临时资源。
+
+**根因**：真实网页把生成卡、查看器主图和下载事件分成异步阶段；同一查看器还可能带轮播缩略图。页面资源 URL 不能单独证明它属于当前任务和当前助手回合。
+
+**正确做法**：先把当前用户回合绑定到紧邻助手回合和唯一可见媒体卡；点击该卡后要求唯一语义化 dialog、面积显著更大的主图和一致自然尺寸，再有界等待唯一“保存”控件并捕获浏览器 download 事件。查看器未唯一匹配或保存控件未稳定出现时安全失败，恢复只能观察原回合。
+
+**验证方式**：延迟查看器夹具回归通过；真实任务 `task_msiq8jlw_k1xot6vo` 首次安全失败后只读恢复，最终媒体卡、下载事件、PNG 解码和 SHA-256 一致，没有重复提交。
+
+**禁止事项**：不得整页扫描图片；不得使用 `currentSrc`、缩略图、用户附件、隐藏副本或历史卡作为下载兜底；不得把同卡轮播缩略图计作多个结果。
+
+**相关文件或命令**：`src/chatgpt/media-binding.ts`、`src/chatgpt/web-flow.ts`、`tests/chatgpt/media-binding.test.ts`、`tests/integration/web-flow.test.ts`、`node dist/src/cli.js resume --task-id <taskId>`。
+
+**适用范围**：文生图、图生图、图改图、补图和提交后恢复。
+
+## 提交后的稳定会话不能从历史侧栏猜测
+
+**现象**：新任务已经在网页生成完成，但任务记录可能写入侧栏中的旧会话 UUID，恢复后从旧对话拿到与提示词无关的历史图片。
+
+**根因**：提交后扫描整个侧栏并取第一个 UUID 链接，无法证明该链接由本次提交产生；Profile 中已有历史会话时会稳定串图。
+
+**正确做法**：提交前记录全部会话链接基线；提交后只接受当前页面稳定 UUID URL，或明确新增且不在基线内的唯一 UUID 链接。恢复模式必须使用已落盘的稳定 URL，禁止再从侧栏推断。
+
+**验证方式**：带历史链接的受控夹具回归通过；0.3.0 文生图、图改图、图生图和双任务并发的稳定 URL、回合锚点、媒体卡与结果哈希均各自对应。
+
+**禁止事项**：不得取第一个、最后一个或文本最相似的侧栏会话作为当前任务；不得保存 `WEB:` 临时 URL；恢复缺少稳定 URL 时不得新建会话或重发。
+
+**相关文件或命令**：`src/chatgpt/web-flow.ts`、`src/persistence/recover.ts`、`tests/integration/web-flow.test.ts`、`liran_docs/09-真机实测.md`。
+
+**适用范围**：新会话生成、图改图、提交后恢复和同 Profile 多任务队列。
+
+## 附件确认不能在 Composer 不唯一时退回整页扫描
+
+**现象**：当前输入区没有上传完成的参考图，但页面历史区域存在同名附件；如果附件识别退回扫描整个 `body`，图生图可能错误通过上传门禁。
+
+**根因**：响应式或 hydration 阶段可能暂时出现多个可见 textbox。将“当前 Composer 不能唯一定位”解释成“扫描全页”会失去任务边界，并把历史附件纳入候选。
+
+**正确做法**：只在唯一可见 Composer 及其唯一祖先 `form` 内扫描附件。Composer 或表单不唯一时保持待定，超过有界预算返回 `ATTACHMENT_UPLOAD_UNCONFIRMED`；同名历史附件不能改变结果。
+
+**验证方式**：受控浏览器夹具同时放置重复 Composer、当前表单缺失附件和表单外同名历史附件；旧实现错误接受，修复后明确拒绝。
+
+**禁止事项**：不得退回 `body`、conversation、侧栏或历史消息扫描；不得用文件名相同替代当前输入区的打开/移除控件和数量证据。
+
+**相关文件或命令**：`src/chatgpt/attachments.ts`、`tests/fixtures/chatgpt-page/index.html`、`tests/integration/web-flow.test.ts`。
+
+**适用范围**：本地参考图图生图、多附件上传和 ChatGPT Composer hydration。
+
+## 当前照片入口不能被更早出现的通用文件 input 抢占
+
+**现象**：页面同时存在表单内通用 `#upload-files`、专用 `data-testid=upload-photos-input` 和相机 input；对联合选择器直接 `.first()` 后，通用 input 收到本地文件但连续 10 秒没有生成附件卡片，随后发送点击没有提交，草稿仍留在 Composer。
+
+**根因**：CSS 联合选择器按 DOM 顺序返回节点，不按选择器书写优先级返回。当前 ChatGPT 的可靠照片入口是专用 `upload-photos-input`；通用 input 虽带 `data-photo-upload-enabled`，直接设置文件并不等价于当前照片上传流程。
+
+**正确做法**：优先要求唯一 `input[data-testid=upload-photos-input][accept*=image]`；仅当该入口不存在时，回退到唯一 Composer 表单内、非相机的 `accept=image` input。上传后仍只在当前表单验证精确文件名、数量、打开和移除控件。
+
+**验证方式**：夹具把无事件的通用 input 放在专用照片 input 之前；旧实现返回 `ATTACHMENT_UPLOAD_UNCONFIRMED`，修复后 T03 生成和交付成功。真实专用入口在 0.5 秒内出现精确附件卡片，任务 `task_mt78uzxk_xu73ll7q` 持久化 `reference_attachment_visible` 和精确文件名。
+
+**禁止事项**：不得假设 CSS 联合选择器的第一段优先；不得使用相机 input；不得把历史或旧草稿附件当成本轮上传；不得在附件证据缺失时提交。
+
+**相关文件或命令**：`src/chatgpt/web-flow.ts`、`src/chatgpt/attachments.ts`、`tests/fixtures/chatgpt-page/index.html`、`tests/integration/web-flow.test.ts`。
+
+**适用范围**：本地参考图图生图、照片上传入口改版和多 input 响应式页面。
+
+## 发送点击无效时只能在确定未派发后键盘回退一次
+
+**现象**：发送按钮 click 返回成功，但 10 秒后提示词仍完整保留，当前页面没有新用户回合、没有新增稳定会话，最近 15 个会话也没有提示词指纹；任务进入 `SUBMISSION_UNCERTAIN`。
+
+**根因**：ChatGPT SPA 在 Composer/附件 hydration 期间可能接受自动化点击动作但不派发表单。仅凭 click API 成功不能证明消息已经离开输入区。
+
+**正确做法**：点击后等待短窗口；只有当前 Composer 仍精确等于待提交提示词、用户回合数量未增加、当前 URL 和会话链接均没有新增稳定会话，且发送按钮仍可用时，才在同一 attempt 内对 Composer 发送一次 Enter。任一派发迹象存在都禁止回退。
+
+**验证方式**：夹具让第一次按钮 click 无效、Enter 才触发表单；修复前 `SUBMISSION_UNCERTAIN`，修复后只有一个用户回合。真实 `task_mt78uzxk_xu73ll7q` 在修复后获得 `clickedAt/confirmedAt`、稳定 URL 和 1/1 回合锚点。
+
+**禁止事项**：不得定时无条件重按 Enter；不得在 Composer 已清空、已有用户回合、已有新会话或状态未知时再次派发；不得创建第二个任务规避恢复流程。
+
+**相关文件或命令**：`src/chatgpt/web-flow.ts`、`src/chatgpt/submit.ts`、`tests/integration/web-flow.test.ts`。
+
+**适用范围**：新会话文生图、图生图、图改图和 ChatGPT Composer SPA hydration。
+
+## 查看器保存控件等待必须覆盖真实 hydration
+
+**现象**：生成图及唯一查看器主图已出现，但“保存”按钮在 5 秒预算后仍未挂载；工具安全失败，稍后人工只读打开同一查看器可见唯一保存按钮。
+
+**根因**：媒体主图、查看器壳层和顶部操作栏分阶段 hydration；图片可见不代表下载控件已稳定。
+
+**正确做法**：保持唯一 dialog、唯一主图及自然尺寸一致的前置门禁，再有界等待唯一保存按钮 15 秒并捕获 download 事件。超时仍失败；已确认提交且具备稳定会话/回合锚点时使用 `resume` 继续同一结果。
+
+**验证方式**：6.5 秒延迟保存按钮夹具修复前失败、修复后通过；真实 `task_mt78uzxk_xu73ll7q` 从 `seq=5 recovering` 恢复到 `seq=9 succeeded`，媒体卡 `image-f6b4070b-b23d-41a8-b3db-cfbdfdd0110d`，未新增用户回合。
+
+**禁止事项**：不得改用 `currentSrc`、截图或任意缩略图；不得无限等待；不得为恢复下载重新提交生成请求。
+
+**相关文件或命令**：`src/chatgpt/web-flow.ts`、`src/persistence/recover.ts`、`tests/integration/web-flow.test.ts`、`node dist/src/cli.js resume --task-id <taskId>`。
+
+**适用范围**：生成媒体查看器、原图下载、提交后恢复和实时 `image_ready`。

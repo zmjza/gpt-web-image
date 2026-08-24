@@ -25,10 +25,26 @@ function inlineDeliveryRequirements(count: number): string {
   ].join("\n");
 }
 
-export function imageGenerationPrompt(prompt: string, count: number): string {
-  return `${prompt.trim()}\n\n${inlineDeliveryRequirements(count)}`;
+export function imageGenerationPrompt(prompt: string, count: number, aspectRatio: string | null = null): string {
+  const ratio = aspectRatio ? `画面比例必须为 ${aspectRatio}。` : "";
+  return `${prompt.trim()}${ratio ? `\n\n${ratio}` : ""}\n\n${inlineDeliveryRequirements(count)}`;
 }
 
-export function supplementImagePrompt(remaining: number): string {
-  return `请继续生成剩余 ${remaining} 张图片，保持上一轮的内容和风格要求不变。\n\n${inlineDeliveryRequirements(remaining)}`;
+export interface RefineSourceDescriptor { assistantTurnOrdinal: number; resultPosition: number; }
+
+export function refineImagePrompt(prompt: string, count: number, sources: readonly RefineSourceDescriptor[], aspectRatio: string | null = null): string {
+  if (sources.length === 0) throw new Error("图改图缺少已验证的网页源图");
+  const targets = sources.map((source) => `第 ${source.assistantTurnOrdinal} 个助手回复中的第 ${source.resultPosition} 张生成图片`).join("、");
+  const ratio = aspectRatio ? `修改后的画面比例必须为 ${aspectRatio}。` : "";
+  return [
+    `只修改本对话中以下指定源图：${targets}。不得改动其他历史图片，也不得重新选择相邻回复中的图片。`,
+    prompt.trim(),
+    ratio,
+    inlineDeliveryRequirements(count)
+  ].filter(Boolean).join("\n\n");
+}
+
+export function supplementImagePrompt(remaining: number, aspectRatio: string | null = null): string {
+  const ratio = aspectRatio ? `画面比例必须继续保持为 ${aspectRatio}。` : "";
+  return `请继续生成剩余 ${remaining} 张图片，保持上一轮的内容和风格要求不变。${ratio ? `\n${ratio}` : ""}\n\n${inlineDeliveryRequirements(remaining)}`;
 }

@@ -23,7 +23,10 @@ import { readRememberedCount, writeRememberedCount } from "./tasks/count-memory.
 import { openProfileRuntime } from "./profiles/runtime.js";
 import { bindActiveProfile } from "./profiles/binding.js";
 import { BrowserLease } from "./browser/browser-lease.js";
-import { imageGenerationPrompt, supplementImagePrompt } from "./chatgpt/conversation.js";
+import { imageGenerationPrompt, supplementImagePrompt, refineImagePrompt, isStableConversationUrl, type RefineSourceDescriptor } from "./chatgpt/conversation.js";
+import { ProfileTaskQueue } from "./tasks/profile-queue.js";
+import { hashFile } from "./images/hash.js";
+import { referenceExpectations } from "./chatgpt/attachments.js";
 
 export interface CliIo { stdout: (line: string) => void; stderr: (line: string) => void; }
 const DEFAULT_IO: CliIo = { stdout: (line) => process.stdout.write(`${line}\n`), stderr: (line) => process.stderr.write(`${line}\n`) };
@@ -65,7 +68,7 @@ async function resumeObserver(taskPath: string, task: TaskRecord, config: Awaite
     if (remaining === 0) { task.state = "succeeded"; }
     else {
       const result = await runWebImageFlow({
-        page: session.page, prompt: task.request.prompt, targetCount: remaining, outputLayout: layout, submit: false, resumeAssistantOrdinal: task.responseAnchor.assistantTurnOrdinal,
+        page: session.page, prompt: task.request.prompt, targetCount: remaining, outputLayout: layout, aspectRatio: task.request.aspectRatio, submit: false, resumeAssistantOrdinal: task.responseAnchor.assistantTurnOrdinal, resumeUserOrdinal: task.responseAnchor.userTurnOrdinal,
         stabilityWindowMs: config.stabilityWindowMs, timeoutMs: config.hardTimeoutMs,
         knownHashes: new Set(task.results.map((entry) => (entry as { sha256?: string }).sha256).filter((value): value is string => typeof value === "string")),
         onState: (state) => writer.write({ taskId: task.taskId, type: "progress", state: state === "queued" ? "queued" : state === "generating" ? "generating" : "partial", message: state, completed: task.results.length, target: task.targetCount, recoverable: true }),
@@ -103,13 +106,28 @@ async function runImageCommand(command: "generate" | "edit" | "refine", argv: st
   const chrome = inspectChrome({ configuredPath: config.chromeExecutablePath ?? undefined });
   if (!chrome.available || !chrome.path) { io.stderr("未找到 Google Chrome"); return 20; }
   const sourceTaskId = option(argv, "--task-id") ?? null;
+  let sourceResultIds = options(argv, "--result-id");
+  let refineSources: RefineSourceDescriptor[] = [];
   let sourceTask: TaskRecord | null = null;
   if (command === "refine") {
     if (!sourceTaskId) { io.stderr("refine 必须提供 --task-id"); return 20; }
     const sourcePath = await findTask(option(argv, "--output-dir") ?? config.fallbackOutputDir, sourceTaskId);
     if (!sourcePath) { io.stderr("找不到连续修改的源任务"); return 20; }
     sourceTask = await readTaskRecord(sourcePath);
-    if (!sourceTask.chatUrl) { io.stderr("源任务缺少可恢复会话 URL"); return 41; }
+    if (!sourceTask.chatUrl || !isStableConversationUrl(sourceTask.chatUrl)) { io.stderr("源任务缺少稳定、可恢复的 ChatGPT 会话 URL"); return 41; }
+    if (sourceTask.profileBinding?.profileId !== profileBinding.profileId || sourceTask.profileBinding.profileDir !== profileBinding.profileDir) { io.stderr("图改图源任务与当前启用 Profile 不一致"); return 20; }
+    const sourceResults = sourceTask.results.flatMap((entry, index) => {
+      const result = entry as { resultId?: unknown; provenance?: { assistantTurnOrdinal?: unknown } };
+      return typeof result.resultId === "string" ? [{ resultId: result.resultId, index, provenance: result.provenance }] : [];
+    });
+    if (sourceResultIds.length === 0) {
+      if (sourceResults.length !== 1) { io.stderr("图改图源任务包含多张图片，必须明确提供 --result-id"); return 20; }
+      sourceResultIds = [sourceResults[0]?.resultId as string];
+    }
+    const selected = sourceResultIds.map((resultId) => sourceResults.find((entry) => entry.resultId === resultId));
+    if (selected.some((entry) => !entry)) { io.stderr("图改图指定的 --result-id 不属于源任务"); return 20; }
+    if (selected.some((entry) => !Number.isInteger(entry?.provenance?.assistantTurnOrdinal))) { io.stderr("图改图源结果缺少一一对应的助手回合证据"); return 41; }
+    refineSources = selected.map((entry) => ({ assistantTurnOrdinal: entry?.provenance?.assistantTurnOrdinal as number, resultPosition: (entry?.index as number) + 1 }));
   }
   const prompt = parsePrompt(argv);
   const countMemoryPath = join(runtime.dataRoot, "preferences.json");
@@ -117,8 +135,12 @@ async function runImageCommand(command: "generate" | "edit" | "refine", argv: st
   const count = Number(explicitCount ?? await readRememberedCount(countMemoryPath, config.defaultImageCount));
   let task: TaskRecord;
   try {
-    task = createTaskRecord({ kind: command, prompt, count, aspectRatio: option(argv, "--ratio") ?? null, referencePaths: options(argv, "--reference"), sourceTaskId, sourceResultIds: options(argv, "--result-id"), modifyAll: false }, createTaskId(), new Date(), profileBinding);
+    task = createTaskRecord({ kind: command, prompt, count, aspectRatio: option(argv, "--ratio") ?? null, referencePaths: options(argv, "--reference"), sourceTaskId, sourceResultIds, modifyAll: false }, createTaskId(), new Date(), profileBinding);
   } catch (error) { io.stderr(error instanceof Error ? error.message : String(error)); return 20; }
+  if (task.request.referencePaths.length > 0) {
+    const expectations = await referenceExpectations(task.request.referencePaths);
+    task.referenceEvidence = await Promise.all(expectations.map(async (entry, index) => ({ ...entry, sha256: await hashFile(task.request.referencePaths[index] as string) })));
+  }
   if (explicitCount !== undefined) await writeRememberedCount(countMemoryPath, count);
   const outputRoot = option(argv, "--output-dir") ?? config.fallbackOutputDir;
   const layout = await createOutputLayout(outputRoot, new Date(), task.taskId);
@@ -128,30 +150,59 @@ async function runImageCommand(command: "generate" | "edit" | "refine", argv: st
   const images = new ImageReadyEmitter(writer);
   writer.write({ taskId: task.taskId, type: "state", state: "initializing", message: "任务已创建", completed: 0, target: count, recoverable: true });
   const startUrl = option(argv, "--url") ?? sourceTask?.chatUrl ?? "https://chatgpt.com/";
+  const profileQueue = new ProfileTaskQueue(runtime.dataRoot, profileBinding.profileId);
+  const queuePosition = await profileQueue.enqueue(task.taskId);
+  task.queuePosition = queuePosition;
+  task.state = "queued";
+  await writeTaskRecord(taskPath, task);
+  writer.write({ taskId: task.taskId, type: "progress", state: "queued", message: `已进入 Profile 队列，第 ${queuePosition} 位`, completed: 0, target: count, recoverable: true });
+  try {
+    await profileQueue.waitForTurn(task.taskId, async () => (await readTaskRecord(taskPath)).cancelRequestedAt !== null, config.hardTimeoutMs);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    task.state = /QUEUE_CANCELLED/.test(message) ? "cancelled" : "failed";
+    task.queuePosition = null;
+    task.failures.push({ code: message.split(":", 1)[0], message });
+    task.finishedAt = new Date().toISOString();
+    task.updatedAt = task.finishedAt;
+    await writeTaskRecord(taskPath, task);
+    writer.write({ taskId: task.taskId, type: "terminal", state: task.state, message: task.state === "cancelled" ? "任务已取消" : message, completed: 0, target: count, recoverable: false });
+    return task.state === "cancelled" ? 43 : 70;
+  }
+  task.queuePosition = null;
+  task.state = "ready";
+  task.updatedAt = new Date().toISOString();
+  await writeTaskRecord(taskPath, task);
   const browserLease = new BrowserLease(runtime.dataRoot, { profileId: profileBinding.profileId, profileDir: profileBinding.profileDir, ownerType: "task" });
-  await browserLease.acquire();
+  try { await browserLease.acquire(); }
+  catch (error) { await profileQueue.release(task.taskId); throw error; }
   let session: BrowserSession;
   try {
     session = await launchProfile({ profileDir: profileBinding.profileDir, executablePath: chrome.path, headed: flag(argv, "--headed"), url: startUrl });
   } catch (error) {
     await browserLease.release();
+    await profileQueue.release(task.taskId);
     throw error;
   }
   try {
     task.state = "submitting"; task.startedAt = new Date().toISOString(); task.updatedAt = task.startedAt;
     await writeTaskRecord(taskPath, task);
-    let flowPrompt = imageGenerationPrompt(prompt, count);
+    let flowPrompt = command === "refine"
+      ? refineImagePrompt(prompt, count, refineSources, task.request.aspectRatio)
+      : imageGenerationPrompt(prompt, count, task.request.aspectRatio);
     let flowTarget = count;
     let finalChatUrl = startUrl;
     for (let round = 0; round <= config.maxSupplementRounds && task.results.length < count; round += 1) {
-      if (round > 0) { task.supplementRound = round; flowTarget = count - task.results.length; flowPrompt = supplementImagePrompt(flowTarget); await writeTaskRecord(taskPath, task); }
+      if (round > 0) { task.supplementRound = round; flowTarget = count - task.results.length; flowPrompt = supplementImagePrompt(flowTarget, task.request.aspectRatio); await writeTaskRecord(taskPath, task); }
       const executeRound = () => runWebImageFlow({
-          page: session.page, prompt: flowPrompt, targetCount: flowTarget, outputLayout: layout, referencePaths: round === 0 ? task.request.referencePaths : [],
+          page: session.page, prompt: flowPrompt, targetCount: flowTarget, outputLayout: layout, aspectRatio: task.request.aspectRatio, referencePaths: round === 0 ? task.request.referencePaths : [],
           requireExistingConversation: command === "refine",
           stabilityWindowMs: config.stabilityWindowMs, timeoutMs: config.hardTimeoutMs, knownHashes: new Set(task.results.map((entry) => (entry as { sha256?: string }).sha256).filter((value): value is string => typeof value === "string")),
-          onPreparedSubmission: async (submission) => { task.submission = { attemptId: submission.attemptId, baselineMessageCount: submission.baselineMessageCount, baselineImageFingerprints: [], promptFingerprint: submission.promptFingerprint, clickedAt: null, confirmedAt: null, confirmationEvidence: [] }; task.state = "submitting"; await writeTaskRecord(taskPath, task); },
+          onPreparedSubmission: async (submission) => { task.submission = { attemptId: submission.attemptId, baselineMessageCount: submission.baselineMessageCount, baselineImageFingerprints: [], promptFingerprint: submission.promptFingerprint, clickedAt: null, confirmedAt: null, confirmationEvidence: [...task.submission.confirmationEvidence] }; task.state = "submitting"; await writeTaskRecord(taskPath, task); },
           onBeforeSubmitClick: async () => { task.submission.clickedAt = new Date().toISOString(); await writeTaskRecord(taskPath, task); },
-          onSubmissionConfirmed: async () => { task.submission.confirmedAt = new Date().toISOString(); task.submission.confirmationEvidence = ["matching_user_turn", "composer_empty"]; task.state = "submitted"; await writeTaskRecord(taskPath, task); },
+          onSubmissionConfirmed: async () => { task.submission.confirmedAt = new Date().toISOString(); task.submission.confirmationEvidence = [...new Set([...task.submission.confirmationEvidence, "matching_user_turn", "composer_empty"])]; task.state = "submitted"; await writeTaskRecord(taskPath, task); },
+          onModelSelected: async (selection) => { task.modelSelection = selection; task.modelSelections.push(selection); task.updatedAt = new Date().toISOString(); await writeTaskRecord(taskPath, task); },
+          onAttachmentsConfirmed: async (attachments) => { task.submission.confirmationEvidence = [...new Set([...task.submission.confirmationEvidence, "reference_attachment_visible", ...attachments.map((entry) => `reference:${entry.fileName}`)])]; task.updatedAt = new Date().toISOString(); await writeTaskRecord(taskPath, task); },
           onResponseAnchor: async (anchor, chatUrl) => { task.responseAnchor = anchor; task.chatUrl = chatUrl; await writeTaskRecord(taskPath, task); },
           onState: (state) => writer.write({ taskId: task.taskId, type: "progress", state: state === "queued" ? "queued" : state === "generating" ? "generating" : "partial", message: state, completed: task.results.length, target: count, recoverable: true }),
           onImage: async (image) => {
@@ -204,7 +255,7 @@ async function runImageCommand(command: "generate" | "edit" | "refine", argv: st
     if (state === "result_uncertain") return 41;
     if (state === "timed_out") return 42;
     return 70;
-  } finally { await session.close(); await browserLease.release(); }
+  } finally { await session.close(); await browserLease.release(); await profileQueue.release(task.taskId); }
 }
 
 export async function runCli(argv: string[] = process.argv.slice(2), io: CliIo = DEFAULT_IO): Promise<number> {

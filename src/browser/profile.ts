@@ -47,6 +47,7 @@ async function reserveLoopbackPort(): Promise<number> {
 export interface MacWindowLookupOptions {
   maxAttempts?: number;
   intervalMs?: number;
+  beforeAttempt?: () => void | Promise<void>;
   run?: (script: string) => string;
 }
 
@@ -65,12 +66,13 @@ function buildMacWindowLookupScript(marker: string): string {
 }
 
 export async function hideMacWindowByTitle(marker: string, options: MacWindowLookupOptions = {}): Promise<void> {
-  const maxAttempts = Math.max(1, Math.floor(options.maxAttempts ?? 20));
-  const intervalMs = Math.max(0, Math.floor(options.intervalMs ?? 50));
+  const maxAttempts = Math.max(1, Math.floor(options.maxAttempts ?? 60));
+  const intervalMs = Math.max(0, Math.floor(options.intervalMs ?? 100));
   const script = buildMacWindowLookupScript(marker);
   const run = options.run ?? ((value: string) => execFileSync("osascript", ["-e", value], { encoding: "utf8" }));
   let lastTransientError: unknown = null;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    await options.beforeAttempt?.();
     try {
       if (run(script).trim() === "true") return;
     } catch (error) {
@@ -87,9 +89,10 @@ async function minimizeConnectedWindow(context: BrowserContext, page: Page): Pro
   if (process.platform === "darwin") {
     const marker = `gpt-web-image-${randomUUID()}`;
     const originalTitle = (await page.title().catch(() => "")) || "";
-    await page.evaluate((value) => { document.title = value; }, marker);
     try {
-      await hideMacWindowByTitle(marker);
+      await hideMacWindowByTitle(marker, {
+        beforeAttempt: () => page.evaluate((value) => { document.title = value; }, marker)
+      });
     } finally {
       await page.evaluate(({ value, title }) => { if (document.title === value) document.title = title; }, { value: marker, title: originalTitle }).catch(() => undefined);
     }
@@ -201,8 +204,13 @@ export async function launchProfile(options: LaunchProfileOptions): Promise<Brow
   try {
     launched = await connectToChrome(options.profileDir, options.executablePath, options.url ?? "about:blank", !options.headed);
     const targetUrl = options.url ?? "about:blank";
-    if (targetUrl !== "about:blank" && launched.page.url() !== targetUrl) {
-      await launched.page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 15_000 }).catch(() => undefined);
+    if (targetUrl !== "about:blank") {
+      try {
+        const response = await launched.page.goto(targetUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
+        if (response && response.status() >= 400) throw new Error(`HTTP ${response.status()}`);
+      } catch (error) {
+        throw new Error(`PAGE_NAVIGATION_UNCERTAIN: 专用 Chrome 无法确认目标页面：${error instanceof Error ? error.message : String(error)}`);
+      }
     }
     if (!options.headed) {
       try {

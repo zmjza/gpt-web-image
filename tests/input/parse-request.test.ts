@@ -27,6 +27,12 @@ test("T03 parses edit and refine fields without side effects", () => {
   });
 });
 
+test("T03 enforces the three user-facing image routes", () => {
+  assert.throws(() => parseRequest({ kind: "edit", prompt: "改成夜景" }), /图生图.*参考图|edit.*参考图/);
+  assert.throws(() => parseRequest({ kind: "generate", prompt: "x", referencePaths: [referencePath] }), /generate.*参考图|图生图/);
+  assert.throws(() => parseRequest({ kind: "refine", prompt: "加一点雾", sourceTaskId: "task_1", referencePaths: [referencePath] }), /refine.*本地|图改图/);
+});
+
 test("T03 rejects invalid count and missing references", () => {
   assert.throws(() => parseRequest({ kind: "generate", prompt: "x", count: 0 }), RequestInputError);
   assert.throws(() => parseRequest({ kind: "generate", prompt: "x", referencePaths: ["/missing/nope.png"] }), RequestInputError);

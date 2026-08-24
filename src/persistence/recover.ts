@@ -9,7 +9,14 @@ export type RecoveryDecision =
   | { action: "resume_observer"; maySubmit: false; reason: "anchored_submission" };
 
 export function auditRecovery(task: TaskRecord): RecoveryDecision {
-  if (isTerminalState(task.state)) return { action: "already_terminal", maySubmit: false, reason: "terminal" };
+  if (isTerminalState(task.state)) {
+    const failedDeliveryCanResume = (task.state === "failed" || task.state === "result_uncertain")
+      && Boolean(task.submission.confirmedAt)
+      && Boolean(task.chatUrl && isStableConversationUrl(task.chatUrl))
+      && Boolean(task.responseAnchor);
+    if (failedDeliveryCanResume) return { action: "resume_observer", maySubmit: false, reason: "anchored_submission" };
+    return { action: "already_terminal", maySubmit: false, reason: "terminal" };
+  }
   if (!task.submission.attemptId && !task.submission.clickedAt) return { action: "resume_before_submit", maySubmit: true, reason: "no_attempt" };
   if (!task.submission.confirmedAt) return { action: "result_uncertain", maySubmit: false, reason: "submission_unconfirmed" };
   if (!task.chatUrl || !isStableConversationUrl(task.chatUrl) || !task.responseAnchor) return { action: "result_uncertain", maySubmit: false, reason: "missing_context" };

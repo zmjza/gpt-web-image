@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ImageDiscovery } from "../../src/images/discovery.js";
 import { downloadOriginal } from "../../src/images/download.js";
-import { validateImageFile, ImageValidationError } from "../../src/images/validate.js";
+import { validateImageFile, ImageValidationError, assertAspectRatioDirection } from "../../src/images/validate.js";
 import { hashFile } from "../../src/images/hash.js";
 import { createOutputLayout } from "../../src/images/output-layout.js";
 import { createPngPreview } from "../../src/images/preview.js";
@@ -43,6 +43,11 @@ test("T30 performs real decode, dimensions and SHA-256 validation", async () => 
   assert.equal(result.sha256, await hashFile(path));
   await writeFile(join(root, "html.png"), "<html>error</html>");
   await assert.rejects(() => validateImageFile(join(root, "html.png")), ImageValidationError);
+});
+
+test("T30 rejects an obviously reversed requested orientation", () => {
+  assert.doesNotThrow(() => assertAspectRatioDirection(1024, 1536, "9:16"));
+  assert.throws(() => assertAspectRatioDirection(1536, 1024, "9:16"), /比例方向/);
 });
 
 test("T31 separates output directories and preserves original bytes while creating preview", async () => {

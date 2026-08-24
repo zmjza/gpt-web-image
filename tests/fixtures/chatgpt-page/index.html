@@ -5,10 +5,17 @@
   <main id="conversation" aria-live="polite">
     <article data-message-author-role="assistant" data-turn="1"><p>历史回复</p><img src="/image.png?id=old" data-result-id="old" width="1" height="1" alt="历史图片"></article>
   </main>
+  <button id="model-trigger" type="button" aria-label="选择模型" aria-haspopup="menu">选择模型</button>
+  <div id="model-menu" role="menu" hidden>
+    <button type="button" role="menuitem" data-model="gpt-5.6-sol-high" aria-label="GPT-5.6 Sol 高">GPT-5.6 Sol 高</button>
+    <button type="button" role="menuitem" data-model="gpt-5.6-sol-medium" aria-label="GPT-5.6 Sol 中">GPT-5.6 Sol 中</button>
+    <button type="button" role="menuitem" data-model="instant" aria-label="极速">极速</button>
+  </div>
   <form id="composer-form">
     <textarea aria-label="Message ChatGPT" hidden></textarea>
     <div id="prompt-textarea" role="textbox" aria-label="Message ChatGPT" contenteditable="true"></div>
-    <input type="file" aria-label="Upload files" multiple>
+    <div id="attachments" aria-label="已上传附件"></div>
+    <input type="file" aria-label="Upload files" accept="image/*" multiple>
     <button type="submit" aria-label="Send prompt">发送</button>
   </form>
   <script>
@@ -19,10 +26,159 @@
     const loginFlash = Number(params.get('loginFlash') || '0');
     const queueDelay = Number(params.get('queueDelay') || '30');
     const imageGap = Number(params.get('imageGap') || '80');
+    const mediaLoadDelay = Number(params.get('mediaLoadDelay') || '0');
+    const viewerDownload = params.get('viewerDownload') === '1';
+    const stableLinkDelay = Number(params.get('stableLinkDelay') || '0');
+    const viewerOpenDelay = Number(params.get('viewerOpenDelay') || '0');
+    const viewerThumbnails = params.get('viewerThumbnails') === '1';
+    const cardThumbnails = params.get('cardThumbnails') === '1';
+    const viewerControlsDelay = Number(params.get('viewerControlsDelay') || '0');
+    const modelDelay = Number(params.get('modelDelay') || '0');
     const modernDom = params.get('dom') === 'modern';
+    const unavailableModels = (params.get('models') || '').split(',').filter(Boolean);
+    const modelUi = params.get('modelUi') || 'options';
+    const attachmentUi = params.get('attachmentUi') || 'data';
     const form = document.querySelector('#composer-form');
     let input = form.querySelector('#prompt-textarea');
     const conversation = document.querySelector('#conversation');
+    const modelTrigger = document.querySelector('#model-trigger');
+    const modelMenu = document.querySelector('#model-menu');
+    let fileInput = form.querySelector('input[type=file]');
+    const attachments = document.querySelector('#attachments');
+    if (attachmentUi === 'current') {
+      fileInput.removeAttribute('accept');
+      fileInput.removeAttribute('aria-label');
+      const photoInput = document.createElement('input');
+      photoInput.type = 'file';
+      photoInput.multiple = true;
+      photoInput.accept = 'image/*';
+      photoInput.dataset.testid = 'upload-photos-input';
+      document.body.appendChild(photoInput);
+      fileInput = photoInput;
+    }
+    if (params.get('duplicateComposer') === '1') {
+      const duplicateComposer = document.createElement('div');
+      duplicateComposer.setAttribute('role', 'textbox');
+      duplicateComposer.setAttribute('aria-label', 'Message ChatGPT');
+      duplicateComposer.setAttribute('contenteditable', 'true');
+      document.body.insertBefore(duplicateComposer, form);
+    }
+    if (params.get('historicalAttachment') === '1') {
+      const historicalAttachment = document.createElement('div');
+      historicalAttachment.setAttribute('role', 'group');
+      historicalAttachment.setAttribute('aria-label', 'reference.jpg');
+      historicalAttachment.innerHTML = '<button type="button" aria-label="打开图片：用户上传的图片"></button><button type="button" aria-label="移除文件1：reference.jpg"></button>';
+      document.body.insertBefore(historicalAttachment, form);
+    }
+    if (params.get('historicalLink') === '1') {
+      const historical = document.createElement('a');
+      historical.href = 'https://chatgpt.com/c/11111111-1111-4111-8111-111111111111';
+      historical.textContent = '历史会话';
+      document.body.appendChild(historical);
+    }
+    if (stableLinkDelay > 0) {
+      setTimeout(() => {
+        const link = document.createElement('a');
+        link.href = 'https://chatgpt.com/c/6a6e1566-0318-83ec-ac91-2c6536149b19';
+        link.textContent = '稳定会话';
+        document.body.appendChild(link);
+      }, stableLinkDelay);
+    }
+    if (modelDelay > 0) {
+      modelTrigger.hidden = true;
+      setTimeout(() => { modelTrigger.hidden = false; }, modelDelay);
+    }
+    if (modelUi === 'capability' || modelUi === 'localized-capability') {
+      modelTrigger.textContent = '高';
+      modelTrigger.removeAttribute('aria-label');
+      const reasoningLabel = modelUi === 'localized-capability' ? '推理强度' : '思考强度';
+      modelMenu.innerHTML = `
+        <div role="group" data-testid="composer-intelligence-picker-content">
+          <div role="menuitem" aria-label="能力" tabindex="0">
+            <span>能力</span>
+            <span role="slider" aria-valuemin="0" aria-valuemax="2" aria-valuenow="2" aria-hidden="true"></span>
+          </div>
+          <div role="menuitem">模型 <span>GPT-5.6 Sol</span></div>
+          <div role="menuitem">${reasoningLabel} <span data-thinking-label>高</span></div>
+        </div>`;
+    } else if (modelUi === 'nested-capability') {
+      modelTrigger.textContent = '高';
+      modelTrigger.removeAttribute('aria-label');
+      document.body.insertAdjacentHTML('afterbegin', `
+        <button type="button" role="menuitem" aria-haspopup="menu" aria-expanded="false">打开“高棉语解释”的对话选项</button>
+        <button type="button" role="menuitem" aria-haspopup="menu" aria-expanded="false">打开“中文润色”的对话选项</button>`);
+      modelMenu.innerHTML = `
+        <div role="menuitem">自动</div>
+        <div role="menuitem">旧模型</div>
+        <div id="capability-submenu" tabindex="0" role="menuitem" data-state="closed" data-has-submenu aria-haspopup="menu" aria-expanded="false">
+          模型 GPT-5.6 Sol 高 GPT-5.6 Sol 中 极速
+        </div>
+        <div id="capability-panel" role="group" data-testid="composer-intelligence-picker-content" hidden>
+          <div role="menuitem" aria-label="能力" tabindex="0">
+            <span>能力</span>
+            <span role="slider" aria-valuemin="0" aria-valuemax="2" aria-valuenow="2" aria-hidden="true"></span>
+          </div>
+          <div role="menuitem">模型 <span>GPT-5.6 Sol</span></div>
+          <div role="menuitem">思考强度 <span data-thinking-label>高</span></div>
+        </div>`;
+      const submenu = modelMenu.querySelector('#capability-submenu');
+      submenu.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+      submenu.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== 'ArrowRight') return;
+        submenu.dataset.state = 'open';
+        submenu.setAttribute('aria-expanded', 'true');
+        modelMenu.querySelector('#capability-panel').hidden = false;
+      });
+    }
+    const capability = modelMenu.querySelector('[role="menuitem"][aria-label="能力"]');
+    if (capability) {
+      capability.addEventListener('keydown', (event) => {
+        const slider = capability.querySelector('[role="slider"]');
+        const max = Number(slider.getAttribute('aria-valuemax'));
+        const current = Number(slider.getAttribute('aria-valuenow'));
+        const next = event.key === 'End' ? max : event.key === 'Home' ? 0 : event.key === 'ArrowRight' ? Math.min(max, current + 1) : event.key === 'ArrowLeft' ? Math.max(0, current - 1) : current;
+        slider.setAttribute('aria-valuenow', String(next));
+        const label = next === 2 ? '高' : next === 1 ? '中' : '极速';
+        modelTrigger.textContent = label;
+        modelMenu.querySelector('[data-thinking-label]').textContent = label;
+      });
+    }
+    modelTrigger.addEventListener('click', () => { modelMenu.hidden = false; });
+    modelMenu.querySelectorAll('[data-model]').forEach((control) => {
+      const key = control.dataset.model;
+      if (unavailableModels.includes('all') || unavailableModels.includes(key)) {
+        control.disabled = true;
+        control.setAttribute('aria-disabled', 'true');
+      }
+      control.addEventListener('click', () => {
+        modelMenu.querySelectorAll('[data-model]').forEach((candidate) => candidate.removeAttribute('aria-selected'));
+        control.setAttribute('aria-selected', 'true');
+        modelTrigger.textContent = control.textContent;
+        modelMenu.hidden = true;
+      });
+    });
+    fileInput.addEventListener('change', () => {
+      attachments.innerHTML = '';
+      if (params.get('attachmentMissing') === '1') return;
+      Array.from(fileInput.files || []).forEach((file, index) => {
+        const item = document.createElement('div');
+        const fileName = params.get('attachmentMismatch') === '1' && index === 0 ? '错误附件.jpg' : file.name;
+        if (attachmentUi === 'real' || attachmentUi === 'current') {
+          item.setAttribute('role', 'group');
+          item.setAttribute('aria-label', fileName);
+          item.innerHTML = `<button type="button" aria-label="打开图片：用户上传的图片"></button><button type="button" aria-label="移除文件${index + 1}：${fileName}"></button>`;
+        } else {
+          item.dataset.uploadedFile = 'true';
+          item.dataset.fileName = fileName;
+          item.dataset.fileSize = String(file.size);
+          item.innerHTML = `<span>${fileName}</span><button type="button" aria-label="打开图片：用户上传的图片"></button><button type="button" aria-label="移除文件${index + 1}：${fileName}"></button>`;
+        }
+        attachments.appendChild(item);
+      });
+    });
     if (modernDom) {
       conversation.innerHTML = '<section data-turn="assistant"><div data-message-author-role="assistant"><p>历史回复</p></div></section>';
     }
@@ -47,6 +203,14 @@
           input = replacement;
         }, 100);
       }, { once: true });
+    }
+    if (params.get('submitUi') === 'click-ignored') {
+      form.querySelector('button[type="submit"]').addEventListener('click', (event) => event.preventDefault(), { once: true });
+      input.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        form.requestSubmit();
+      });
     }
     form.addEventListener('submit', (event) => {
       event.preventDefault();
@@ -74,11 +238,53 @@
       for (let i = 1; i <= count; i += 1) {
         setTimeout(() => {
           const figure = document.createElement('figure');
+          figure.dataset.imageCardId = `result-${i}`;
+          if (viewerDownload && !cardThumbnails) figure.setAttribute('role', 'button');
+          if (cardThumbnails) figure.id = `image-fixture-${i}`;
+          const imageMarkup = `<img${mediaLoadDelay > 0 ? '' : ` src="/image.png?id=${i}"`} data-result-id="result-${i}" width="1" height="1" alt="结果 ${i}">`;
+          const downloadMarkup = `<a role="button" data-result-id="${params.get('wrongDownload') === '1' ? 'old' : `result-${i}`}" aria-label="Download image ${i}" download="result-${i}.png" href="${params.get('wrongDownload') === '1' ? '/image.png?id=old' : `/image.png?id=${i}`}">下载</a>`;
           figure.innerHTML = modernDom
-            ? `<img src="/image.png?id=${i}" width="1" height="1" alt="结果 ${i}"><img src="/image.png?id=${i}" width="1" height="1" alt="" aria-hidden="true"><img src="/image.png?id=${i}" width="1" height="1" alt="" aria-hidden="true">`
-            : `<img src="/image.png?id=${i}" data-result-id="result-${i}" width="1" height="1" alt="结果 ${i}"><a role="button" data-result-id="result-${i}" aria-label="Download image ${i}" download="result-${i}.png" href="/image.png?id=${i}">下载</a>`;
+            ? `${imageMarkup}<img src="/image.png?id=${i}" width="1" height="1" alt="" aria-hidden="true"><img src="/image.png?id=${i}" width="1" height="1" alt="" aria-hidden="true">${mediaLoadDelay > 0 || viewerDownload ? '' : downloadMarkup}`
+            : `${imageMarkup}${mediaLoadDelay > 0 || viewerDownload ? '' : downloadMarkup}`;
+          if (cardThumbnails) {
+            const primary = document.createElement('div');
+            primary.setAttribute('role', 'button');
+            while (figure.firstChild) primary.appendChild(figure.firstChild);
+            figure.appendChild(primary);
+            figure.insertAdjacentHTML('beforeend', '<button type="button"><img src="/image.png?id=old" alt="已生成图片"></button><button type="button"><img src="/image.png?id=old" alt="已生成图片"></button>');
+          }
           assistant.appendChild(figure);
           assistant.dataset.state = i === count ? 'complete' : 'generating';
+          if (viewerDownload) {
+            figure.addEventListener('click', () => {
+              const dialog = document.createElement('div');
+              dialog.setAttribute('role', 'dialog');
+              dialog.setAttribute('aria-label', '媒体查看器');
+              dialog.innerHTML = `${viewerThumbnails ? '<img src="/image.png?id=old" alt="" style="width:20px;height:20px"><img src="/image.png?id=old" alt="" style="width:24px;height:24px">' : ''}<img src="/image.png?id=${i}" alt="结果 ${i}" style="width:200px;height:200px"><button type="button" aria-label="关闭全屏显示">关闭</button>`;
+              const addSaveControl = () => {
+                const save = document.createElement('button');
+                save.type = 'button';
+                save.setAttribute('aria-label', '保存');
+                save.textContent = '保存';
+                save.addEventListener('click', () => {
+                  const link = document.createElement('a');
+                  link.href = `/image.png?id=${i}`;
+                  link.download = `result-${i}.png`;
+                  link.click();
+                });
+                dialog.appendChild(save);
+              };
+              setTimeout(addSaveControl, viewerControlsDelay);
+              dialog.querySelector('[aria-label="关闭全屏显示"]').addEventListener('click', () => dialog.remove());
+              setTimeout(() => document.body.appendChild(dialog), viewerOpenDelay);
+            });
+          }
+          if (mediaLoadDelay > 0) {
+            setTimeout(() => {
+              figure.querySelector('img[alt]')?.setAttribute('src', `/image.png?id=${i}`);
+              if (!viewerDownload) figure.insertAdjacentHTML('beforeend', downloadMarkup);
+            }, mediaLoadDelay);
+          }
         }, queueDelay + (imageGap * i));
       }
     });
