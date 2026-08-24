@@ -82,13 +82,13 @@
 
 ## 递归文件结果与子进程启动预算必须使用当前平台语义
 
-**现象**：Windows CI 的真实业务流程已成功，CLI 返回 0，但测试用 `${taskId}/task.json` 查找递归 `readdir` 结果时失败；同一 run 的跨进程 FIFO 夹具在约 500ms 内没看到 ready 文件，报“启动超时”。
+**现象**：Windows CI 的真实业务流程已成功，CLI 返回 0，但测试用 `${taskId}/task.json` 查找递归 `readdir` 结果时失败；同一 run 的跨进程 FIFO 夹具最初报 ready 文件启动超时，增加退出诊断后确认首个子进程以 code 1 提前退出。
 
-**根因**：Windows 递归目录条目使用原生反斜杠，硬编码 POSIX `/` 无法匹配；Windows runner 创建独立 Node 进程和加载 ESM 的时间可能超过本机 500ms，原预算没有覆盖跨平台启动成本。
+**根因**：Windows 递归目录条目使用原生反斜杠，硬编码 POSIX `/` 无法匹配；测试还把 `D:\\...` 绝对路径直接写进 ESM `import`，Node ESM 要求 Windows 本地模块使用 `file:///D:/...` URL。原夹具忽略子进程 stderr，且 500ms 预算先掩盖了真实退出原因。
 
-**正确做法**：使用 `path.join(taskId, "task.json")` 构造预期后缀；跨进程夹具使用有界 5 秒 deadline，并在等待期间检查首个子进程是否已经退出，以区分慢启动与真实崩溃。业务锁、FIFO 顺序和生产超时不作放宽。
+**正确做法**：使用 `path.join(taskId, "task.json")` 构造预期后缀；使用 `pathToFileURL(modulePath).href` 生成子进程 ESM import；跨进程夹具使用有界 5 秒 deadline，并在等待期间检查首个子进程是否已经退出，以区分慢启动与真实崩溃。业务锁、FIFO 顺序和生产超时不作放宽。
 
-**验证方式**：本机定向运行 CLI 附件证据和双进程 FIFO 测试；推送后必须在最新提交对应的 Windows Actions 中确认完整 `npm test` 和 build 绿色，不能复用失败 run `32732163497`。
+**验证方式**：本机定向运行 CLI 附件证据和双进程 FIFO 测试；推送后必须在最新提交对应的 Windows Actions 中确认完整 `npm test` 和 build 绿色，不能复用失败 run `32732163497` 或 `32733052229`。
 
 **禁止事项**：不得把路径分隔符写死为 `/` 或 `\\`；不得无限等待或放宽生产队列超时；不得仅重跑失败 CI 而不修复可复现的跨平台假设。
 

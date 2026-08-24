@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { access, appendFile, mkdir, readFile, writeFile } from "node:fs/promises";
@@ -50,8 +51,8 @@ test("serializes two separate Node processes in FIFO order", async () => {
   const root = await mkdtemp(join(tmpdir(), "gwi-profile-queue-process-"));
   const ready = join(root, "first.ready");
   const log = join(root, "order.log");
-  const modulePath = join(process.cwd(), "dist/src/tasks/profile-queue.js");
-  const worker = `import { writeFile, appendFile } from "node:fs/promises"; import { ProfileTaskQueue } from ${JSON.stringify(modulePath)}; const [root, task, ready, log, hold] = process.argv.slice(1); const q = new ProfileTaskQueue(root, "profile-process", { pollIntervalMs: 5 }); await q.enqueue(task); if (ready) await writeFile(ready, "ready"); await q.waitForTurn(task); await appendFile(log, task + ":start\\n"); await new Promise((resolve) => setTimeout(resolve, Number(hold))); await appendFile(log, task + ":end\\n"); await q.release(task);`;
+  const moduleUrl = pathToFileURL(join(process.cwd(), "dist/src/tasks/profile-queue.js")).href;
+  const worker = `import { writeFile, appendFile } from "node:fs/promises"; import { ProfileTaskQueue } from ${JSON.stringify(moduleUrl)}; const [root, task, ready, log, hold] = process.argv.slice(1); const q = new ProfileTaskQueue(root, "profile-process", { pollIntervalMs: 5 }); await q.enqueue(task); if (ready) await writeFile(ready, "ready"); await q.waitForTurn(task); await appendFile(log, task + ":start\\n"); await new Promise((resolve) => setTimeout(resolve, Number(hold))); await appendFile(log, task + ":end\\n"); await q.release(task);`;
   const first = spawn(process.execPath, ["--input-type=module", "-e", worker, root, "task-a", ready, log, "50"], { stdio: "ignore" });
   const waitForReady = async (): Promise<void> => {
     const deadline = Date.now() + 5_000;
