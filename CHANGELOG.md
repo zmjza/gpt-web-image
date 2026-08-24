@@ -11,6 +11,7 @@
 - 真实图生图任务 `task_mt78uzxk_xu73ll7q` 使用用户上传参考图，选择 `GPT-5.6 Sol 高`，附件、提交、稳定会话、用户/助手回合、唯一媒体卡和下载事件证据完整；恢复交付 1 张 `1254×1254 PNG`，SHA-256 为 `8bfa2cc17b6365cfafa5e3ff049d39b094ac742c83133dabc60ce5cbf3ca4fc1`。
 - 自动化验证：typecheck、完整测试 `172/172`、集成测试 `28/28`、build、官方 npm audit、Skill 快速校验和 `git diff --check` 均通过；用户级安装器返回 `action=upgraded`，源码 Skill 与安装目录内容一致，doctor 确认 Chrome、Profile 和输出目录可用。
 - Windows 验证使用原生路径分隔符定位递归任务文件，并用 `pathToFileURL()` 把本地模块路径转换成 ESM `file://` 地址；独立 Node 队列子进程保留有界 5 秒启动预算和提前退出诊断，避免把路径表示或 runner 调度差异误判为业务失败。
+- 最终 Windows Actions 在 Node 22/Windows Server 2025 上完成全量测试 `176/176` 和 build，失败诊断上传按条件跳过。
 - 已知限制：ChatGPT 实际返回 1254×1254，并非原生 4K；本工具不进行本地伪造放大。网页可见语义仍可能变化，结构或证据不明确时继续安全停止。
 
 ## 0.3.0 - 2026-08-07
