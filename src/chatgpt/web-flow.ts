@@ -13,7 +13,6 @@ import { createPngPreview } from "../images/preview.js";
 import type { PreparedSubmission } from "./submit.js";
 import type { ResponseAnchor } from "../tasks/model.js";
 import { isStableConversationUrl } from "./conversation.js";
-import { selectImageModel, type ModelSelectionEvidence } from "./model-selection.js";
 import { referenceExpectations, waitForUploadedAttachments, type UploadedAttachmentEvidence } from "./attachments.js";
 import { bindMediaCards, type RawMediaCardSnapshot } from "./media-binding.js";
 
@@ -37,13 +36,12 @@ export interface WebImageFlowOptions {
   onBeforeSubmitClick?: () => void | Promise<void>;
   onSubmissionConfirmed?: () => void | Promise<void>;
   onResponseAnchor?: (anchor: ResponseAnchor, chatUrl: string | null) => void | Promise<void>;
-  onModelSelected?: (selection: ModelSelectionEvidence) => void | Promise<void>;
   onAttachmentsConfirmed?: (attachments: UploadedAttachmentEvidence[]) => void | Promise<void>;
   knownHashes?: ReadonlySet<string>;
   isCancelled?: () => boolean | Promise<boolean>;
   requireExistingConversation?: boolean;
 }
-export interface WebImageFlowResult { state: "succeeded" | "partial_success"; results: ImageResult[]; chatUrl: string; modelSelection?: ModelSelectionEvidence; }
+export interface WebImageFlowResult { state: "succeeded" | "partial_success"; results: ImageResult[]; chatUrl: string; }
 
 const modernTurnSelector = (role: "user" | "assistant") => `[data-turn="${role}"]`;
 const legacyTurnSelector = (role: "user" | "assistant") => `[data-message-author-role="${role}"]`;
@@ -296,10 +294,7 @@ export async function runWebImageFlow(options: WebImageFlowOptions): Promise<Web
   const assistantBaseline = await (await turnLocator(page, "assistant")).count();
   const userBaseline = await userMessageTexts(page);
   let initialPageState = "";
-  let modelSelection: ModelSelectionEvidence | undefined;
   if (options.submit !== false) {
-    modelSelection = await selectImageModel(page, Math.min(options.timeoutMs, 15_000), options.pollIntervalMs ?? 250);
-    await options.onModelSelected?.(modelSelection);
     if ((options.referencePaths?.length ?? 0) > 0) {
       const dedicatedPhotoUpload = page.locator('input[type="file"][data-testid="upload-photos-input"][accept*="image" i]');
       let upload: Locator;
@@ -479,13 +474,13 @@ export async function runWebImageFlow(options: WebImageFlowOptions): Promise<Web
         if (!(error instanceof ImageValidationError) || !/重复/.test(error.message)) throw error;
       }
     }
-    if (results.length >= options.targetCount) return { state: "succeeded", results, chatUrl: stableChatUrl ?? page.url(), ...(modelSelection ? { modelSelection } : {}) };
+    if (results.length >= options.targetCount) return { state: "succeeded", results, chatUrl: stableChatUrl ?? page.url() };
     if (pageState === "complete" && completedAt !== null && Date.now() - completedAt >= options.stabilityWindowMs && !hasPendingAnchoredMedia && !discovery.hasPendingCandidates) {
-      if (results.length > 0) return { state: "partial_success", results, chatUrl: stableChatUrl ?? page.url(), ...(modelSelection ? { modelSelection } : {}) };
+      if (results.length > 0) return { state: "partial_success", results, chatUrl: stableChatUrl ?? page.url() };
       throw new Error("生成结束但没有合格图片");
     }
     await page.waitForTimeout(options.pollIntervalMs ?? 100);
   }
-  if (results.length > 0) return { state: "partial_success", results, chatUrl: stableChatUrl ?? page.url(), ...(modelSelection ? { modelSelection } : {}) };
+  if (results.length > 0) return { state: "partial_success", results, chatUrl: stableChatUrl ?? page.url() };
   throw new Error("TASK_TIMED_OUT");
 }

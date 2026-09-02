@@ -209,63 +209,15 @@ test("T34 persists a stable conversation link that appears after submission conf
   } finally { await browser.close(); await fixture.close(); }
 });
 
-test("T20 chooses the next available model and refuses an explicit daily limit", { skip: !chrome.available }, async () => {
+test("T20 submits with the current ChatGPT model without opening the model menu", { skip: !chrome.available }, async () => {
   const fixture = await startFixtureServer();
   const browser = await chromium.launch({ executablePath: chrome.path as string, headless: true });
   try {
     const page = await browser.newPage({ acceptDownloads: true });
-    await page.goto(`${fixture.url}/?scenario=success&count=1&models=gpt-5.6-sol-high`);
-    const fallback = await runWebImageFlow({ page, prompt: "模型回退", targetCount: 1, outputLayout: await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-model-fallback-")), new Date(), "model_fallback"), stabilityWindowMs: 10, pollIntervalMs: 10, timeoutMs: 3000 });
-    assert.equal(fallback.modelSelection?.modelKey, "gpt-5.6-sol-medium");
     await page.goto(`${fixture.url}/?scenario=success&count=1&models=all`);
-    const limitLayout = await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-model-limit-")), new Date(), "model_limit");
-    await assert.rejects(() => runWebImageFlow({ page, prompt: "限额", targetCount: 1, outputLayout: limitLayout, stabilityWindowMs: 10, pollIntervalMs: 10, timeoutMs: 1000 }), /单日生图已达限额，暂时不可生图。/);
-  } finally { await browser.close(); await fixture.close(); }
-});
-
-test("T20 selects the real ChatGPT capability picker when its trigger only says high", { skip: !chrome.available }, async () => {
-  const fixture = await startFixtureServer();
-  const browser = await chromium.launch({ executablePath: chrome.path as string, headless: true });
-  try {
-    const page = await browser.newPage({ acceptDownloads: true });
-    await page.goto(`${fixture.url}/?scenario=success&count=1&modelUi=capability`);
-    const result = await runWebImageFlow({ page, prompt: "真实模型菜单", targetCount: 1, outputLayout: await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-capability-model-")), new Date(), "capability_model"), stabilityWindowMs: 10, pollIntervalMs: 10, timeoutMs: 3000 });
-    assert.equal(result.modelSelection?.modelKey, "gpt-5.6-sol-high");
-    assert.match(result.modelSelection?.label ?? "", /GPT-5\.6 Sol.*高/);
-  } finally { await browser.close(); await fixture.close(); }
-});
-
-test("T20 accepts the current Chinese reasoning label in the capability picker", { skip: !chrome.available }, async () => {
-  const fixture = await startFixtureServer();
-  const browser = await chromium.launch({ executablePath: chrome.path as string, headless: true });
-  try {
-    const page = await browser.newPage({ acceptDownloads: true });
-    await page.goto(`${fixture.url}/?scenario=success&count=1&modelUi=localized-capability`);
-    const result = await runWebImageFlow({ page, prompt: "推理强度模型菜单", targetCount: 1, outputLayout: await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-localized-capability-")), new Date(), "localized_capability"), stabilityWindowMs: 10, pollIntervalMs: 10, timeoutMs: 3000 });
-    assert.equal(result.modelSelection?.modelKey, "gpt-5.6-sol-high");
-  } finally { await browser.close(); await fixture.close(); }
-});
-
-test("T20 opens a nested model capability submenu without relying on pointer clicks", { skip: !chrome.available }, async () => {
-  const fixture = await startFixtureServer();
-  const browser = await chromium.launch({ executablePath: chrome.path as string, headless: true });
-  try {
-    const page = await browser.newPage({ acceptDownloads: true });
-    await page.goto(`${fixture.url}/?scenario=success&count=1&modelUi=nested-capability`);
-    const result = await runWebImageFlow({ page, prompt: "嵌套模型菜单", targetCount: 1, outputLayout: await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-nested-model-")), new Date(), "nested_model"), stabilityWindowMs: 10, pollIntervalMs: 10, timeoutMs: 3000 });
-    assert.equal(result.modelSelection?.modelKey, "gpt-5.6-sol-high");
-    assert.match(result.modelSelection?.label ?? "", /GPT-5\.6 Sol.*高/);
-  } finally { await browser.close(); await fixture.close(); }
-});
-
-test("T20 waits for the model trigger to hydrate after the composer", { skip: !chrome.available }, async () => {
-  const fixture = await startFixtureServer();
-  const browser = await chromium.launch({ executablePath: chrome.path as string, headless: true });
-  try {
-    const page = await browser.newPage({ acceptDownloads: true });
-    await page.goto(`${fixture.url}/?scenario=success&count=1&modelUi=capability&modelDelay=1800`);
-    const result = await runWebImageFlow({ page, prompt: "延迟模型菜单", targetCount: 1, outputLayout: await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-delayed-model-")), new Date(), "delayed_model"), stabilityWindowMs: 10, pollIntervalMs: 20, timeoutMs: 3000 });
-    assert.equal(result.modelSelection?.modelKey, "gpt-5.6-sol-high");
+    const result = await runWebImageFlow({ page, prompt: "直接使用当前模型", targetCount: 1, outputLayout: await createOutputLayout(await mkdtemp(join(tmpdir(), "gwi-current-model-")), new Date(), "current_model"), stabilityWindowMs: 10, pollIntervalMs: 10, timeoutMs: 3000 });
+    assert.equal(result.state, "succeeded");
+    assert.equal(await page.locator("#model-menu").isHidden(), true);
   } finally { await browser.close(); await fixture.close(); }
 });
 

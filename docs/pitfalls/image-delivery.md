@@ -178,6 +178,22 @@
 
 **适用范围**：本地参考图图生图、照片上传入口改版和多 input 响应式页面。
 
+## 附件卡瞬时未挂载时必须在提交前停止
+
+**现象**：0.5.0 真实验收的首次任务已找到专用照片 input，但 15 秒内没有取得可验证附件卡，以 `ATTACHMENT_UPLOAD_UNCONFIRMED` 停止；随后独立探针在 142ms 内取得相同文件的完整打开/移除证据，第二次任务成功。
+
+**根因**：信息不全，现有证据只能确认为 ChatGPT 上传控件的瞬时 hydration 或会话状态问题；不是模型菜单或额度失败。
+
+**正确做法**：附件名、打开和移除控件不完整时继续在提交前安全停止。只有任务记录明确 `clickedAt=null` 和 `confirmedAt=null` 时，才可由操作者新建一次任务；已有任何提交迹象则禁止重提。
+
+**验证方式**：检查 `task_mtkai0x5_kx449wex` 无 attempt/click/confirm/chatUrl；独立探针返回精确文件名且 `ready=true`；`task_mtkamt5z_yhoxhmui` 最终 `succeeded` 并持久化完整附件证据。
+
+**禁止事项**：不得在附件证据缺失时发送；不得把一次瞬时失败误报为登录失效、额度耗尽或模型不可用；不得在提交状态不明时重试。
+
+**相关文件或命令**：`src/chatgpt/web-flow.ts`、`src/chatgpt/attachments.ts`、`node dist/src/cli.js edit`、`liran_docs/09-真机实测.md`。
+
+**适用范围**：真实 ChatGPT 参考图上传、SPA hydration 和提交前安全门禁。
+
 ## 发送点击无效时只能在确定未派发后键盘回退一次
 
 **现象**：发送按钮 click 返回成功，但 10 秒后提示词仍完整保留，当前页面没有新用户回合、没有新增稳定会话，最近 15 个会话也没有提示词指纹；任务进入 `SUBMISSION_UNCERTAIN`。

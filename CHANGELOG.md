@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0 - 2026-09-03
+
+- 禁用生图提交前的 ChatGPT 模型菜单识别、展开、切换和验证；文生图、图生图和图改图现在都直接使用网页当前已选模型提交。
+- 移除运行链路的 `selectImageModel` 依赖和新模型证据写入，避免 ChatGPT 频繁更新菜单结构后在提交前误报限额或 `MODEL_SELECTION_UNCERTAIN`。
+- 保留旧任务 `modelSelection` / `modelSelections` 字段的读取兼容；新任务字段保持空值，不影响旧任务恢复。
+- 增加回归验证：即使夹具中所有模型项都被标记为不可用，流程仍直接提交成功，模型菜单全程保持关闭。
+- 真实图生图任务 `task_mtkamt5z_yhoxhmui` 已交付 `1086×1448 PNG`，任务记录为 `modelSelection=null` / `modelSelections=[]`，并保留附件、提交、回合、媒体卡和原图下载事件的完整证据；SHA-256 为 `2bb2d25c2fe46020a041e0bf467f2fb9ac4a1e53e5d8de36ee0d02f3b431f9bc`。
+- 本地验证：typecheck、build、完整测试 `168/168`、集成测试 `24/24`、定向模型菜单回归、Skill 源码/安装目录快速校验、同步内容比对和官方 npm audit（0 vulnerabilities）通过。
+- 已知限制：工具不再替用户选择模型；生图能力、速度和额度由 ChatGPT 当前模型及账号状态决定。
+
 ## 0.4.0 - 2026-08-24
 
 - 修复 ChatGPT 新模型能力菜单：混合高/中/极速文本的父菜单不再被误认成具体模型；支持当前“推理强度”本地化文案、直接能力 slider 和嵌套 Radix 子菜单，模型仍须明确验证后才允许提交。

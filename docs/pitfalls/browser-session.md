@@ -226,6 +226,8 @@
 
 ## 嵌套模型菜单的父节点不是最终模型选项
 
+> **0.5.0 起的现行策略**：模型菜单自动化已禁用。提交流程不再查询、打开、切换或验证任何模型/能力控件，直接使用 ChatGPT 当前已选模型。以下内容仅保留为 0.4.0 历史根因记录。
+
 **现象**：真实图生图任务在提交前失败；一次 `locator.click` 等待可见 `role=menuitem` 时被 `thread-bottom-container` 拦截 30 秒，另一次打开菜单后返回 `MODEL_SELECTION_UNCERTAIN`。任务没有 `clickedAt`、`confirmedAt` 或 `chatUrl`，参考图证据已正常落盘。
 
 **根因**：ChatGPT 把模型能力入口改成 Radix 嵌套子菜单。父节点带 `data-has-submenu`、`aria-haspopup=menu` 和混合的高/中/极速文本；旧分类器优先匹配其中的“极速”，误把整个父节点当成最终选项，再用容易被底部覆盖层拦截的指针点击操作它。扁平菜单夹具没有覆盖该结构。
